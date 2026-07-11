@@ -3,13 +3,24 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 
-type User = {
+export type User = {
   id: string;
   email: string;
   name: string;
-  phone: string;
-  location?: string | null;
-  role: "admin" | "customer";
+  phone: string | null;
+  role: "admin" | "customer" | "company" | "employee";
+  pincode?: string | null;
+  district?: string | null;
+  state?: string | null;
+  budgetRange?: string | null;
+  purpose?: string | null;
+  gstNumber?: string | null;
+  businessMail?: string | null;
+  keyId?: string | null;
+  position?: string | null;
+  companyCode?: string | null;
+  companyId?: string | null;
+  permissions?: Record<string, boolean>;
 };
 
 type AuthContextType = {
@@ -18,6 +29,7 @@ type AuthContextType = {
   loading: boolean;
   login: (email: string, password: string) => Promise<any>;
   register: (body: any) => Promise<any>;
+  firebaseSync: (idToken: string, role?: string, customFields?: any) => Promise<any>;
   logout: () => void;
   updateProfile: (body: any) => Promise<any>;
   recoverPassword: (body: any) => Promise<any>;
@@ -70,6 +82,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   };
 
+  const firebaseSync = async (idToken: string, role?: string, customFields?: any) => {
+    const res = await api.auth.firebaseSync({ idToken, role, customFields });
+    if (res.success && res.registered && res.token) {
+      localStorage.setItem("token", res.token);
+      setToken(res.token);
+      setUser(res.user);
+    }
+    return res;
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -96,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         login,
         register,
+        firebaseSync,
         logout,
         updateProfile,
         recoverPassword,

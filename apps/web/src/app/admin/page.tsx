@@ -20,13 +20,14 @@ import {
   Save,
   LogOut,
   ChevronRight,
-  Database
+  Database,
+  Users
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "quotes";
+type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "users" | "quotes";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function AdminDashboard() {
   const [woodwork, setWoodwork] = useState<any[]>([]);
   const [doorData, setDoorData] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
 
   // Action status indicators
   const [errorMsg, setErrorMsg] = useState("");
@@ -80,22 +82,23 @@ export default function AdminDashboard() {
     }
   }, [user, loading, router]);
 
-  // Load backend data
   async function loadData() {
     try {
-      const [p, b, c, w, d, q] = await Promise.all([
+      const [p, b, c, w, d, q, u] = await Promise.all([
         api.products.get(),
         api.brands.get(),
         api.categories.get(),
         api.woodwork.get(),
         api.doors.getAll(),
-        api.quotes.get()
+        api.quotes.get(),
+        api.auth.getAllUsers()
       ]);
       setProducts(p);
       setBrands(b);
       setCategories(c);
       setWoodwork(w);
       setDoorData(d);
+      setUsers(u);
 
       let quoteData = q;
       try {
@@ -133,6 +136,28 @@ export default function AdminDashboard() {
     setSuccessMsg(msg);
     setErrorMsg("");
     setTimeout(() => setSuccessMsg(""), 3000);
+  }
+
+  async function handleUserPermissionToggle(userId: string, key: string, val: boolean) {
+    try {
+      const userToEdit = users.find((u) => u.id === userId);
+      if (!userToEdit) return;
+
+      const currentPerms = userToEdit.permissions || {};
+      const updatedPermissions = {
+        ...currentPerms,
+        [key]: val
+      };
+
+      await api.auth.adminUpdateUserPermissions(userId, updatedPermissions);
+      triggerSuccess("Updated permissions for " + userToEdit.name);
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, permissions: updatedPermissions } : u))
+      );
+    } catch (err: any) {
+      setErrorMsg("Failed to toggle permission: " + err.message);
+    }
   }
 
   // ===================== PRODUCT OPERATIONS =====================
@@ -364,6 +389,14 @@ export default function AdminDashboard() {
               }`}
             >
               <Settings className="h-4 w-4" /> Custom Doors
+            </button>
+            <button
+              onClick={() => setModeAndClear("users")}
+              className={`flex h-11 items-center gap-3 rounded-lg px-3 text-left text-xs font-semibold uppercase tracking-wider transition ${
+                activeTab === "users" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Users className="h-4 w-4" /> Users Control
             </button>
             <button
               onClick={() => setModeAndClear("quotes")}
@@ -697,6 +730,113 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAB 5: USERS CONTROL MANAGER */}
+          {activeTab === "users" && (
+            <Card className="border-slate-200 shadow-sm bg-white">
+              <CardHeader className="border-b border-slate-100 py-4">
+                <CardTitle className="text-lg">User Accounts & Calculator Permissions</CardTitle>
+                <CardDescription>Manage workspace permissions for Customers, Companies, and Employees.</CardDescription>
+              </CardHeader>
+              
+              <CardContent className="p-0 overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                      <th className="px-4 py-3">User Details</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Location / Contact</th>
+                      <th className="px-4 py-3">Registration Details</th>
+                      <th className="px-4 py-3 text-center">Kitchen</th>
+                      <th className="px-4 py-3 text-center">Doors</th>
+                      <th className="px-4 py-3 text-center">Wardrobe</th>
+                      <th className="px-4 py-3 text-center">Construction</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150">
+                    {users.map((u) => {
+                      if (u.role === "admin") return null;
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/40">
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-slate-800">{u.name}</div>
+                            <div className="text-slate-500">{u.email}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              u.role === "company" 
+                                ? "bg-purple-100 text-purple-700" 
+                                : u.role === "employee" 
+                                  ? "bg-amber-100 text-amber-700" 
+                                  : "bg-blue-100 text-blue-700"
+                            }`}>
+                              {u.role === "company" ? "Company" : u.role === "employee" ? "Employee" : "Customer"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <div>{u.phone || "No phone"}</div>
+                            <div className="text-[10px]">{u.pincode ? `${u.pincode} (${u.district}, ${u.state})` : ""}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {u.role === "company" && (
+                              <div>
+                                <div className="text-[10px]">GST: <span className="font-semibold text-slate-700">{u.gstNumber}</span></div>
+                                <div className="text-[10px]">Key: <span className="font-semibold text-slate-700">{u.keyId}</span></div>
+                              </div>
+                            )}
+                            {u.role === "employee" && (
+                              <div>
+                                <div className="text-[10px]">Pos: <span className="font-semibold text-slate-700">{u.position}</span></div>
+                                <div className="text-[10px]">Comp: <span className="font-semibold text-slate-700">{u.companyCode}</span></div>
+                              </div>
+                            )}
+                            {u.role === "customer" && (
+                              <div>
+                                <div className="text-[10px]">Budget: <span className="font-semibold text-slate-700">{u.budgetRange}</span></div>
+                                <div className="text-[10px]">Purpose: <span className="font-semibold text-slate-700">{u.purpose}</span></div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={u.permissions?.kitchen !== false}
+                              onChange={(e) => handleUserPermissionToggle(u.id, "kitchen", e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={u.permissions?.doors !== false}
+                              onChange={(e) => handleUserPermissionToggle(u.id, "doors", e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={u.permissions?.wardrobe !== false}
+                              onChange={(e) => handleUserPermissionToggle(u.id, "wardrobe", e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={u.permissions?.construction !== false}
+                              onChange={(e) => handleUserPermissionToggle(u.id, "construction", e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </CardContent>
             </Card>
           )}

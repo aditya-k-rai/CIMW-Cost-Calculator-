@@ -543,8 +543,29 @@ export class CalculatorService {
 
   // ===================== QUOTES =====================
 
-  async getQuotes() {
+  async getQuotes(user: any) {
+    const { userId, role } = user;
+
+    if (role === "admin") {
+      return this.prisma.quote.findMany({
+        orderBy: { createdAt: "desc" }
+      });
+    }
+
+    if (role === "company") {
+      const employees = await this.prisma.user.findMany({
+        where: { companyId: userId },
+        select: { id: true }
+      });
+      const ids = [userId, ...employees.map((e) => e.id)];
+      return this.prisma.quote.findMany({
+        where: { customerId: { in: ids } },
+        orderBy: { createdAt: "desc" }
+      });
+    }
+
     return this.prisma.quote.findMany({
+      where: { customerId: userId },
       orderBy: { createdAt: "desc" }
     });
   }
@@ -558,7 +579,9 @@ export class CalculatorService {
     roomSize?: any;
     startDate?: string;
     additionalNotes?: string;
-  }) {
+    city?: string;
+    notes?: string;
+  }, customerId?: string) {
     const parsed = quoteSchema.safeParse(input);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.flatten());
@@ -580,7 +603,7 @@ export class CalculatorService {
         productsJson: JSON.stringify(input.products || []),
         woodworkJson: JSON.stringify(input.woodwork || []),
         doorJson: JSON.stringify(input.doors || []),
-        customerId: input.customerId || null
+        customerId: customerId || input.customerId || null
       }
     });
 

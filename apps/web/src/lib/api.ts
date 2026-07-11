@@ -73,6 +73,49 @@ export const api = {
       });
       return handleResponse(res);
     },
+
+    async firebaseSync(body: any) {
+      const res = await fetch(`${API_URL}/auth/firebase-sync`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+
+    async getEmployees() {
+      const res = await fetch(`${API_URL}/auth/employees`, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    async updateEmployeePermissions(id: string, permissions: any) {
+      const res = await fetch(`${API_URL}/auth/employees/${id}/permissions`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ permissions }),
+      });
+      return handleResponse(res);
+    },
+
+    async getAllUsers() {
+      const res = await fetch(`${API_URL}/auth/admin/users`, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    async adminUpdateUserPermissions(id: string, permissions: any) {
+      const res = await fetch(`${API_URL}/auth/admin/users/${id}/permissions`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ permissions }),
+      });
+      return handleResponse(res);
+    },
   },
 
   // ===================== CONFIG & PUBLIC CATALOG =====================

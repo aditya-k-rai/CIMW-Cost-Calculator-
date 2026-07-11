@@ -52,7 +52,7 @@ declare module "jspdf" {
   }
 }
 
-type WorkspaceTab = "construction" | "modular-kitchen" | "interior" | "wardrobe" | "quote";
+type WorkspaceTab = "construction" | "modular-kitchen" | "interior" | "wardrobe" | "quote" | "employees" | "quote-history";
 
 type CartItem = {
   id: string;
@@ -98,6 +98,100 @@ export default function Dashboard() {
   const { user, loading, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("construction");
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [quoteList, setQuoteList] = useState<any[]>([]);
+
+  // Memoized tabs configuration based on role
+  const availableTabs = useMemo(() => {
+    const standardTabs = [
+      { id: "construction" as WorkspaceTab, label: "Construction", icon: Building2 },
+      { id: "modular-kitchen" as WorkspaceTab, label: "Kitchen", icon: ChefHat },
+      { id: "interior" as WorkspaceTab, label: "Interior", icon: DoorOpen },
+      { id: "wardrobe" as WorkspaceTab, label: "Wardrobe", icon: Layers3 },
+      { id: "quote" as WorkspaceTab, label: "Quote", icon: Send },
+    ];
+
+    if (user?.role === "company") {
+      return [
+        ...standardTabs,
+        { id: "employees" as WorkspaceTab, label: "Employees", icon: User },
+        { id: "quote-history" as WorkspaceTab, label: "Quote History", icon: FileText }
+      ];
+    }
+    return [
+      ...standardTabs,
+      { id: "quote-history" as WorkspaceTab, label: "Quote History", icon: FileText }
+    ];
+  }, [user]);
+
+  // Memoized permission restrictions
+  const lockedTabs = useMemo(() => {
+    if (!user || user.role === "admin") return new Set<string>();
+    const perms = user.permissions || {};
+    const locked = new Set<string>();
+    
+    if (perms.kitchen === false) locked.add("modular-kitchen");
+    if (perms.doors === false) locked.add("interior");
+    if (perms.wardrobe === false) locked.add("wardrobe");
+    if (perms.construction === false) locked.add("construction");
+    
+    return locked;
+  }, [user]);
+
+  // Load employee logs
+  async function loadEmployees() {
+    try {
+      const data = await api.auth.getEmployees();
+      setEmployees(data);
+    } catch (err: any) {
+      console.error("Failed to load employees:", err.message);
+    }
+  }
+
+  // Handle employee permissions toggling
+  async function handleEmployeePermissionToggle(empId: string, key: string, val: boolean) {
+    try {
+      const emp = employees.find((e) => e.id === empId);
+      if (!emp) return;
+
+      const currentPerms = emp.permissions || {};
+      const updatedPermissions = {
+        ...currentPerms,
+        [key]: val
+      };
+
+      await api.auth.updateEmployeePermissions(empId, updatedPermissions);
+      setEmployees((prev) =>
+        prev.map((e) => (e.id === empId ? { ...e, permissions: updatedPermissions } : e))
+      );
+    } catch (err: any) {
+      console.error("Failed to toggle employee permission:", err.message);
+    }
+  }
+
+  // Load quote history
+  async function loadQuoteHistory() {
+    try {
+      const data = await api.quotes.get();
+      setQuoteList(data);
+    } catch (err: any) {
+      console.error("Failed to load quote history:", err.message);
+    }
+  }
+
+  // Fetch company employees if role is company
+  useEffect(() => {
+    if (user?.role === "company") {
+      void loadEmployees();
+    }
+  }, [user]);
+
+  // Fetch quote history when active tab is quote history
+  useEffect(() => {
+    if (activeTab === "quote-history" && user) {
+      void loadQuoteHistory();
+    }
+  }, [activeTab, user]);
   
   // Data lists loaded from NestJS
   const [dbProducts, setDbProducts] = useState<any[]>([]);
@@ -675,22 +769,26 @@ export default function Dashboard() {
         {/* Navigation Sidebar */}
         <aside className="lg:sticky lg:top-[90px] lg:self-start space-y-4">
           <nav className="grid gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-            {tabs.map((tab) => {
+            {availableTabs.map((tab) => {
               const Icon = tab.icon;
               const selected = activeTab === tab.id;
+              const isLocked = lockedTabs.has(tab.id);
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex h-11 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-all ${
+                  className={`flex h-11 items-center justify-between rounded-lg px-3 text-left text-sm font-medium transition-all ${
                     selected
                       ? "bg-indigo-600 text-white shadow-md shadow-indigo-100"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
-                  <Icon className="h-4.5 w-4.5" />
-                  {tab.label}
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-4.5 w-4.5" />
+                    <span>{tab.label}</span>
+                  </div>
+                  {isLocked && <Lock className="h-3.5 w-3.5 text-amber-500" />}
                 </button>
               );
             })}
@@ -727,8 +825,25 @@ export default function Dashboard() {
         {/* Tab Workspaces */}
         <section className="min-w-0">
           
-          {/* TAB 1: CONSTRUCTION */}
-          {activeTab === "construction" && constructionResult && (
+          {lockedTabs.has(activeTab) ? (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="border-slate-200 shadow-md bg-white p-8 text-center max-w-xl mx-auto space-y-4 border-t-4 border-t-amber-500 mt-8">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600 mx-auto">
+                  <Lock className="h-8 w-8" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">Workspace Locked</h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Access to the <span className="font-bold text-indigo-600 capitalize">{activeTab.replace("-", " ")}</span> calculator has been restricted by your administrator or parent company.
+                </p>
+                <p className="text-xs text-slate-400">
+                  Please contact support or your account administrator to unlock this module.
+                </p>
+              </Card>
+            </motion.div>
+          ) : (
+            <>
+              {/* TAB 1: CONSTRUCTION */}
+              {activeTab === "construction" && constructionResult && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid gap-6 xl:grid-cols-[45%_55%]">
               <Card className="border-slate-200 shadow-sm">
                 <CardHeader className="border-b border-slate-100">
@@ -1381,6 +1496,164 @@ export default function Dashboard() {
             </motion.div>
           )}
 
+          {/* TAB 6: EMPLOYEES MANAGER */}
+          {activeTab === "employees" && user?.role === "company" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <Card className="border-slate-200 shadow-sm bg-white border-l-4 border-l-purple-600">
+                <CardHeader className="py-4 border-b border-slate-100">
+                  <CardTitle className="text-sm font-bold text-slate-800">Company Invitation Link & Code</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-2 text-xs">
+                  <p className="text-slate-600">
+                    Share this company code with your employees. They must enter it during registration to link their account to your firm:
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold bg-slate-100 text-slate-800 px-3 py-2.5 rounded-lg border border-slate-200 text-sm select-all">
+                      {user.keyId}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(user.keyId || "");
+                        alert("Company Code copied to clipboard!");
+                      }}
+                    >
+                      Copy Code
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 shadow-sm bg-white">
+                <CardHeader className="py-4 border-b border-slate-100">
+                  <CardTitle className="text-lg">My Employees & Permissions</CardTitle>
+                  <CardDescription>Configure which calculator modules are accessible for each employee.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 overflow-x-auto">
+                  {employees.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic text-xs">
+                      No registered employees linked to your company yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3">Employee Name</th>
+                          <th className="px-4 py-3">Email Address</th>
+                          <th className="px-4 py-3">Role/Position</th>
+                          <th className="px-4 py-3 text-center">Kitchen</th>
+                          <th className="px-4 py-3 text-center">Doors</th>
+                          <th className="px-4 py-3 text-center">Wardrobe</th>
+                          <th className="px-4 py-3 text-center">Construction</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150">
+                        {employees.map((emp) => (
+                          <tr key={emp.id} className="hover:bg-slate-50/40">
+                            <td className="px-4 py-3 font-bold text-slate-800">{emp.name}</td>
+                            <td className="px-4 py-3 text-slate-600">{emp.email}</td>
+                            <td className="px-4 py-3 capitalize text-slate-600 font-medium">{emp.position || "Staff"}</td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={emp.permissions?.kitchen !== false}
+                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "kitchen", e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={emp.permissions?.doors !== false}
+                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "doors", e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={emp.permissions?.wardrobe !== false}
+                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "wardrobe", e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={emp.permissions?.construction !== false}
+                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "construction", e.target.checked)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* TAB 7: QUOTE HISTORY */}
+          {activeTab === "quote-history" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <Card className="border-slate-200 shadow-sm bg-white">
+                <CardHeader className="py-4 border-b border-slate-100">
+                  <CardTitle className="text-lg">Quotation Generation History</CardTitle>
+                  <CardDescription>Review all calculations generated by your profile.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 overflow-x-auto">
+                  {quoteList.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic text-xs">
+                      No quotes generated yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Customer Name</th>
+                          <th className="px-4 py-3">Project Scope</th>
+                          <th className="px-4 py-3">Budget</th>
+                          <th className="px-4 py-3 text-right">Grand Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150">
+                        {quoteList.map((q) => (
+                          <tr key={q.id} className="hover:bg-slate-50/40">
+                            <td className="px-4 py-3 text-slate-500 font-medium">
+                              {new Date(q.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-slate-800">
+                              {q.customerName}
+                              <span className="block text-[10px] text-slate-500 font-normal">
+                                Phone: {q.customerPhone} | Email: {q.customerEmail}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {q.customerLocation || "N/A"}
+                              <span className="block text-[9px] uppercase font-bold text-indigo-600 mt-0.5">
+                                {q.projectType}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 font-semibold">{q.budgetRange || "N/A"}</td>
+                            <td className="px-4 py-3 text-right font-extrabold text-indigo-600 text-sm">
+                              {formatCurrency(q.totalAmount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          </>
+         )}
         </section>
 
       </div>

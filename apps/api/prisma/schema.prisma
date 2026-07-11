@@ -8,16 +8,41 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  phone     String
-  location  String?
-  role      String   @default("customer") // "admin" or "customer"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  quotes    Quote[]
+  id           String   @id @default(uuid())
+  firebaseUid  String?  @unique
+  email        String   @unique
+  password     String?  // Nullable for Google Auth users
+  name         String
+  phone        String?
+  role         String   @default("customer") // "customer", "company", "employee", "admin"
+  pincode      String?
+  district     String?
+  state        String?
+
+  // Customer specific
+  budgetRange  String?
+  purpose      String?
+
+  // Company specific
+  gstNumber    String?
+  businessMail String?
+  keyId        String?
+
+  // Employee specific
+  position     String?
+  companyCode  String?
+
+  // Company-Employee relationship
+  companyId    String?
+  company      User?    @relation("CompanyEmployees", fields: [companyId], references: [id])
+  employees    User[]   @relation("CompanyEmployees")
+
+  // Permissions (JSON config keys, e.g. enabled calculators)
+  permissions  String?  @default("{}")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  quotes       Quote[]
 }
 
 model Brand {

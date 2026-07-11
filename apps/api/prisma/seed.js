@@ -21,6 +21,8 @@ async function main() {
   console.log("👤 Creating users...");
   const adminPassword = hashPassword("admin123");
   const customerPassword = hashPassword("customer123");
+  const companyPassword = hashPassword("company123");
+  const employeePassword = hashPassword("employee123");
 
   await prisma.user.upsert({
     where: { email: "admin@demo.com" },
@@ -30,7 +32,10 @@ async function main() {
       password: adminPassword,
       name: "Admin User",
       phone: "9123456789",
-      role: "admin"
+      role: "admin",
+      pincode: "110001",
+      district: "New Delhi",
+      state: "Delhi"
     }
   });
 
@@ -42,8 +47,60 @@ async function main() {
       password: customerPassword,
       name: "John Doe",
       phone: "9876543210",
-      location: "New Delhi",
-      role: "customer"
+      role: "customer",
+      pincode: "110001",
+      district: "New Delhi",
+      state: "Delhi",
+      budgetRange: "5L - 10L",
+      purpose: "Self Use"
+    }
+  });
+
+  const companyUser = await prisma.user.upsert({
+    where: { email: "company@demo.com" },
+    update: {},
+    create: {
+      email: "company@demo.com",
+      password: companyPassword,
+      name: "CIMW Build Corp",
+      phone: "9555123456",
+      role: "company",
+      pincode: "110001",
+      district: "New Delhi",
+      state: "Delhi",
+      gstNumber: "07AAAAA1111A1Z1",
+      businessMail: "billing@cimwbuild.com",
+      keyId: "SUB-12345",
+      permissions: JSON.stringify({
+        kitchen: true,
+        doors: true,
+        wardrobe: true,
+        construction: true
+      })
+    }
+  });
+
+  await prisma.user.upsert({
+    where: { email: "employee@demo.com" },
+    update: {},
+    create: {
+      email: "employee@demo.com",
+      password: employeePassword,
+      name: "Jane Designer",
+      phone: "9666123456",
+      role: "employee",
+      pincode: "110001",
+      district: "New Delhi",
+      state: "Delhi",
+      position: "Designer",
+      companyCode: "CIMW-COMP-100",
+      companyId: companyUser.id,
+      permissions: JSON.stringify({
+        kitchen: true,
+        doors: true,
+        wardrobe: true,
+        construction: false
+      })
     }
   });
 

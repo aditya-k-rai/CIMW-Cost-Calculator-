@@ -12,9 +12,12 @@ const firebaseConfig = {
   measurementId: "G-W9JR0VC6DB"
 };
 
+import { getAuth } from "firebase/auth";
+
 // Prevent duplicate initialization in hot-reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 let analytics: any = null;
 if (typeof window !== "undefined") {
@@ -25,4 +28,4 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, db, analytics };
+export { app, db, auth, analytics };

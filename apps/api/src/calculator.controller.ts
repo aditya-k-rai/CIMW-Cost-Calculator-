@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { CalculatorService } from "./calculator.service.js";
 import { AuthGuard } from "./auth.guard.js";
 import { RolesGuard } from "./roles.guard.js";
@@ -98,18 +98,25 @@ export class CalculatorController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("admin")
   @Post("woodwork")
-  saveWoodworkItem(@Body() body: any) {
+  saveWoodwork(@Body() body: any) {
     return this.calculatorService.saveWoodworkItem(body);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("admin")
+  @Post("woodwork/:id/update")
+  updateWoodwork(@Param("id") id: string, @Body() body: any) {
+    return this.calculatorService.saveWoodworkItem({ ...body, id });
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
   @Delete("woodwork/:id")
-  deleteWoodworkItem(@Param("id") id: string) {
+  deleteWoodwork(@Param("id") id: string) {
     return this.calculatorService.deleteWoodworkItem(id);
   }
 
-  // ===================== DOORS =====================
+  // ===================== DOORS CONFIG =====================
 
   @Get("doors/all")
   getDoorsAll() {
@@ -202,15 +209,15 @@ export class CalculatorController {
 
   // ===================== QUOTES =====================
 
+  @UseGuards(AuthGuard)
   @Post("quotes")
-  createQuote(@Body() body: any) {
-    return this.calculatorService.createQuote(body);
+  createQuote(@Req() req: any, @Body() body: any) {
+    return this.calculatorService.createQuote(body, req.user.userId);
   }
 
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles("admin")
+  @UseGuards(AuthGuard)
   @Get("quotes")
-  getQuotes() {
-    return this.calculatorService.getQuotes();
+  getQuotes(@Req() req: any) {
+    return this.calculatorService.getQuotes(req.user);
   }
 }

@@ -6,7 +6,7 @@ import * as path from "path";
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    const dbPath = path.resolve(process.cwd(), "prisma/dev.db");
+    const dbPath = path.resolve(__dirname, "../prisma/dev.db");
     const adapter = new PrismaBetterSqlite3({
       url: `file:${dbPath}`
     });
