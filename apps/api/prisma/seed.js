@@ -1,8 +1,12 @@
 import pkg from "@prisma/client";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import crypto from "crypto";
 
 const { PrismaClient } = pkg;
-const prisma = new PrismaClient();
+const adapter = new PrismaBetterSqlite3({
+  url: "file:./prisma/dev.db"
+});
+const prisma = new PrismaClient({ adapter });
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
