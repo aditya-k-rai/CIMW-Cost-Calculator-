@@ -1,0 +1,165 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String
+  location  String?
+  role      String   @default("customer") // "admin" or "customer"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  quotes    Quote[]
+}
+
+model Brand {
+  id      String  @id @default(uuid())
+  name    String
+  logoUrl String?
+}
+
+model Category {
+  id            String  @id @default(uuid())
+  name          String
+  description   String?
+  subcategories String  @default("[]") // JSON stringified array of subcategory strings
+}
+
+model Product {
+  id           String   @id
+  calculator   String   // "modular-kitchen", "interior", "wardrobe"
+  categoryId   String
+  subcategory  String   @default("No Subcategory")
+  name         String
+  description  String?
+  imageUrl     String?
+  unit         String
+  rate         Float
+  variants     String   @default("[]") // JSON stringified array of ProductVariant objects
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WoodworkItem {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  options     String   @default("[]") // JSON stringified array of WoodworkOption objects
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DoorTemplate {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  imageUrl    String?
+  icon        String        @default("🚪")
+  isPublished Boolean       @default(true)
+  sortOrder   Int           @default(0)
+  variants    DoorVariant[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model DoorVariant {
+  id          String       @id @default(uuid())
+  templateId  String
+  template    DoorTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  basePrice   Float
+  imageUrl    String?
+  sku         String?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  finishes    DoorFinish[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model DoorFinish {
+  id          String      @id @default(uuid())
+  variantId   String
+  variant     DoorVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  priceType   String      @default("absolute") // "absolute" or "percentage"
+  priceValue  Float
+  imageUrl    String?
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model DoorAddonGroup {
+  id                 String      @id @default(uuid())
+  name               String
+  description        String?
+  selectionType      String      @default("multiple") // "single" or "multiple"
+  isRequired         Boolean     @default(false)
+  appliesToTemplates String      @default("[]") // JSON stringified template IDs
+  sortOrder          Int         @default(0)
+  addons             DoorAddon[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+}
+
+model DoorAddon {
+  id          String         @id @default(uuid())
+  groupId     String
+  group       DoorAddonGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Float
+  icon        String         @default("🔧")
+  imageUrl    String?
+  isActive    Boolean        @default(true)
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model DoorSetting {
+  id                  String   @id @default("global")
+  taxPercent          Float    @default(18.0)
+  installationCharges Float    @default(0.0)
+  installationType    String   @default("fixed") // "fixed" or "per_unit"
+  minQuantity         Int      @default(1)
+  maxQuantity         Int      @default(100)
+  whatsappNumber      String   @default("")
+  floorOptions        String   @default("[]") // JSON stringified array
+  areaOptions         String   @default("[]") // JSON stringified array
+  updatedAt           DateTime @updatedAt
+}
+
+model Quote {
+  id                  String   @id @default(uuid())
+  customerId          String?
+  customer            User?    @relation(fields: [customerId], references: [id])
+  customerName        String
+  customerPhone       String
+  customerEmail       String
+  customerLocation    String?
+  projectType         String
+  roomSize            Float?
+  budgetRange         String?
+  startDate           String?
+  specialRequirements String?
+  additionalNotes     String?
+  totalAmount         Float
+  productsJson        String   @default("[]") // Details of products in cart
+  woodworkJson        String   @default("[]") // Woodwork selections
+  doorJson            String   @default("[]") // Door selections
+  createdAt           DateTime @default(now())
+}
