@@ -42,6 +42,8 @@ import {
 } from "@cost-calculator/shared";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 // Extend jsPDF types for autotable
 declare module "jspdf" {
@@ -430,7 +432,18 @@ export default function Dashboard() {
 
     try {
       const res = await api.quotes.create(payload);
-      setQuoteMessage(res.message || "Quote request submitted successfully!");
+
+      // Save to Firebase Database
+      try {
+        await addDoc(collection(db, "quotes"), {
+          ...payload,
+          createdAt: new Date().toISOString()
+        });
+      } catch (fbErr: any) {
+        console.error("Firebase Database write failed:", fbErr);
+      }
+
+      setQuoteMessage(res.message || "Quote request submitted successfully (Synced to Firestore)!");
       quoteForm.reset();
       setCart([]);
       setWoodworkArea(0);

@@ -23,6 +23,8 @@ import {
   Database
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "quotes";
 
@@ -94,7 +96,21 @@ export default function AdminDashboard() {
       setCategories(c);
       setWoodwork(w);
       setDoorData(d);
-      setQuotes(q);
+
+      let quoteData = q;
+      try {
+        const querySnapshot = await getDocs(query(collection(db, "quotes"), orderBy("createdAt", "desc")));
+        if (!querySnapshot.empty) {
+          const fbQuotes: any[] = [];
+          querySnapshot.forEach((doc) => {
+            fbQuotes.push({ id: doc.id, ...doc.data() });
+          });
+          quoteData = fbQuotes;
+        }
+      } catch (fbErr) {
+        console.error("Firebase fetch failed, falling back to SQLite API:", fbErr);
+      }
+      setQuotes(quoteData);
 
       if (d?.settings) {
         setDoorTax(d.settings.taxPercent);
