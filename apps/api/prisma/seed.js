@@ -70,7 +70,7 @@ async function main() {
       state: "Delhi",
       gstNumber: "07AAAAA1111A1Z1",
       businessMail: "billing@cimwbuild.com",
-      keyId: "SUB-12345",
+      keyId: "0000",
       permissions: JSON.stringify({
         kitchen: true,
         doors: true,
@@ -93,7 +93,7 @@ async function main() {
       district: "New Delhi",
       state: "Delhi",
       position: "Designer",
-      companyCode: "CIMW-COMP-100",
+      companyCode: "0000",
       companyId: companyUser.id,
       permissions: JSON.stringify({
         kitchen: true,
