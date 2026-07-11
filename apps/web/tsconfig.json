@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "incremental": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@cost-calculator/shared": ["../../packages/shared/src/index.ts"],
+      "@cost-calculator/shared/*": ["../../packages/shared/src/*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

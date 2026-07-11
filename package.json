@@ -1,0 +1,25 @@
+{
+  "name": "cost-calculator",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Modern cost calculator website with Next.js 16 frontend and NestJS backend.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @cost-calculator/api\" \"npm run dev --workspace @cost-calculator/web\"",
+    "dev:web": "npm run dev --workspace @cost-calculator/web",
+    "dev:api": "npm run dev --workspace @cost-calculator/api",
+    "build": "npm run build --workspace @cost-calculator/shared && npm run build --workspace @cost-calculator/api && npm run build --workspace @cost-calculator/web",
+    "lint": "npm run lint --workspace @cost-calculator/web",
+    "typecheck": "npm run build --workspace @cost-calculator/shared && npm run typecheck --workspace @cost-calculator/api && npm run typecheck --workspace @cost-calculator/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
