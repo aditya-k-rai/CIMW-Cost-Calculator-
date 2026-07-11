@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run build --workspace @cost-calculator/shared",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
