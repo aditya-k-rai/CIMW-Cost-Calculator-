@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run build --workspace @cost-calculator/shared && nest start --watch",
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
