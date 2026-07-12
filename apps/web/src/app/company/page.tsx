@@ -2225,7 +2225,7 @@ export default function Dashboard() {
                     <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Calculator</span>
-                        <select value={quoteFilterCalc} onChange={(e) => { setQuoteFilterCalc(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={quoteFilterCalc} onChange={(e) => { setQuoteFilterCalc(e.target.value); setQuotePage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Calculators</option>
                           <option value="construction">Construction</option>
                           <option value="modular-kitchen">Modular Kitchen</option>
@@ -2236,7 +2236,7 @@ export default function Dashboard() {
                       
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Employee</span>
-                        <select value={quoteFilterEmployee} onChange={(e) => { setQuoteFilterEmployee(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={quoteFilterEmployee} onChange={(e) => { setQuoteFilterEmployee(e.target.value); setQuotePage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Employees</option>
                           {employees.map(e => (
                             <option key={e.id} value={e.id}>{e.name}</option>
@@ -2246,7 +2246,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
-                        <select value={quoteFilterDate} onChange={(e) => { setQuoteFilterDate(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={quoteFilterDate} onChange={(e) => { setQuoteFilterDate(e.target.value); setQuotePage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Time</option>
                           <option value="today">Today</option>
                           <option value="week">Last 7 Days</option>
@@ -2256,7 +2256,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Project</span>
-                        <select value={quoteFilterProject} onChange={(e) => { setQuoteFilterProject(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={quoteFilterProject} onChange={(e) => { setQuoteFilterProject(e.target.value); setQuotePage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Projects</option>
                           {projects.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
@@ -2266,7 +2266,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
-                        <select value={quoteFilterStatus} onChange={(e) => { setQuoteFilterStatus(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={quoteFilterStatus} onChange={(e) => { setQuoteFilterStatus(e.target.value); setQuotePage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Statuses</option>
                           <option value="draft">Draft</option>
                           <option value="sent">Sent</option>
@@ -2422,7 +2422,7 @@ export default function Dashboard() {
                     <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Budget Range</span>
-                        <select value={projFilterBudget} onChange={(e) => { setProjFilterBudget(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={projFilterBudget} onChange={(e) => { setProjFilterBudget(e.target.value); setProjPage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Budgets</option>
                           <option value="0-5L">&lt; 5 Lakhs</option>
                           <option value="5L-15L">5L - 15 Lakhs</option>
@@ -2432,7 +2432,7 @@ export default function Dashboard() {
                       
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
-                        <select value={projFilterStatus} onChange={(e) => { setProjFilterStatus(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={projFilterStatus} onChange={(e) => { setProjFilterStatus(e.target.value); setProjPage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Statuses</option>
                           <option value="active">Ongoing (Active)</option>
                           <option value="closed">Completed (Closed)</option>
@@ -2441,7 +2441,7 @@ export default function Dashboard() {
 
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Assigned Staff</span>
-                        <select value={projFilterEmployee} onChange={(e) => { setProjFilterEmployee(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={projFilterEmployee} onChange={(e) => { setProjFilterEmployee(e.target.value); setProjPage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Employees</option>
                           {employees.map(e => (
                             <option key={e.id} value={e.id}>{e.name}</option>
@@ -2456,13 +2456,13 @@ export default function Dashboard() {
                           placeholder="Filter customer..."
                           value={projFilterCustomer}
                           onChange={(e) => { setProjFilterCustomer(e.target.value); setProjPage(1); }}
-                          className="h-7 rounded border border-slate-300 bg-white px-2 text-[11px] focus:outline-none"
+                          className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                         />
                       </div>
 
                       <div className="flex flex-col gap-0.5">
                         <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
-                        <select value={projFilterDate} onChange={(e) => { setProjFilterDate(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                        <select value={projFilterDate} onChange={(e) => { setProjFilterDate(e.target.value); setProjPage(1); }} className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500">
                           <option value="">All Time</option>
                           <option value="today">Today</option>
                           <option value="week">Last 7 Days</option>
