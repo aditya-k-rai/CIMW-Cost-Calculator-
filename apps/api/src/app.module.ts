@@ -9,6 +9,7 @@ import { AuthService } from "./auth.service.js";
 import { FirebaseService } from "./firebase.service.js";
 import { CacheService } from "./cache.service.js";
 import { RolesGuard } from "./roles.guard.js";
+import { SubscriptionGuard } from "./subscription.guard.js";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { RolesGuard } from "./roles.guard.js";
     AuthService,
     FirebaseService,
     CacheService,
+    SubscriptionGuard,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard // Enable rate limiting globally

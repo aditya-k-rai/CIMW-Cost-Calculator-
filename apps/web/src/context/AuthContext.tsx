@@ -20,7 +20,8 @@ export type User = {
   position?: string | null;
   companyCode?: string | null;
   companyId?: string | null;
-  permissions?: Record<string, boolean>;
+  permissions?: Record<string, any>;
+  companySubscriptionStatus?: string;
 };
 
 type AuthContextType = {

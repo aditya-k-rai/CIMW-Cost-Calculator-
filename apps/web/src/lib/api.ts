@@ -116,6 +116,40 @@ export const api = {
       });
       return handleResponse(res);
     },
+
+    async getAllCompanies() {
+      const res = await fetch(`${API_URL}/auth/admin/companies`, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    async createCompany(body: any) {
+      const res = await fetch(`${API_URL}/auth/admin/companies`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+
+    async updateCompany(id: string, body: any) {
+      const res = await fetch(`${API_URL}/auth/admin/companies/${id}`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+
+    async deleteCompany(id: string) {
+      const res = await fetch(`${API_URL}/auth/admin/companies/${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // ===================== CONFIG & PUBLIC CATALOG =====================

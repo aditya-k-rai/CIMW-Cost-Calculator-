@@ -3,6 +3,7 @@ import { CalculatorService } from "./calculator.service.js";
 import { AuthGuard } from "./auth.guard.js";
 import { RolesGuard } from "./roles.guard.js";
 import { Roles } from "./roles.decorator.js";
+import { SubscriptionGuard } from "./subscription.guard.js";
 
 @Controller()
 export class CalculatorController {
@@ -202,6 +203,7 @@ export class CalculatorController {
 
   // ===================== ESTIMATIONS =====================
 
+  @UseGuards(AuthGuard, SubscriptionGuard)
   @Post("calculations/construction")
   calculateConstruction(@Body() body: any) {
     return this.calculatorService.calculateConstruction(body);
@@ -209,13 +211,13 @@ export class CalculatorController {
 
   // ===================== QUOTES =====================
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, SubscriptionGuard)
   @Post("quotes")
   createQuote(@Req() req: any, @Body() body: any) {
     return this.calculatorService.createQuote(body, req.user.userId);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, SubscriptionGuard)
   @Get("quotes")
   getQuotes(@Req() req: any) {
     return this.calculatorService.getQuotes(req.user);

@@ -21,13 +21,14 @@ import {
   LogOut,
   ChevronRight,
   Database,
-  Users
+  Users,
+  Building2
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "users" | "quotes";
+type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "users" | "quotes" | "companies";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -43,6 +44,31 @@ export default function AdminDashboard() {
   const [doorData, setDoorData] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [editCompany, setEditCompany] = useState<any>(null);
+
+  // Company Form states
+  const [compId, setCompId] = useState("");
+  const [compName, setCompName] = useState("");
+  const [compEmail, setCompEmail] = useState("");
+  const [compPhone, setCompPhone] = useState("");
+  const [compGst, setCompGst] = useState("");
+  const [compPlan, setCompPlan] = useState("trial");
+  const [compExpiry, setCompExpiry] = useState("");
+  const [compStatus, setCompStatus] = useState("active");
+  const [compMaxEmployees, setCompMaxEmployees] = useState(20);
+  const [compMaxStorage, setCompMaxStorage] = useState(5000);
+  const [compCalculators, setCompCalculators] = useState<Record<string, boolean>>({
+    interior: true,
+    construction: true,
+    painting: true,
+    electrical: true,
+    plumbing: true,
+    tiles: true,
+    furniture: true,
+    custom: true
+  });
 
   // Action status indicators
   const [errorMsg, setErrorMsg] = useState("");
@@ -84,14 +110,15 @@ export default function AdminDashboard() {
 
   async function loadData() {
     try {
-      const [p, b, c, w, d, q, u] = await Promise.all([
+      const [p, b, c, w, d, q, u, comp] = await Promise.all([
         api.products.get(),
         api.brands.get(),
         api.categories.get(),
         api.woodwork.get(),
         api.doors.getAll(),
         api.quotes.get(),
-        api.auth.getAllUsers()
+        api.auth.getAllUsers(),
+        api.auth.getAllCompanies()
       ]);
       setProducts(p);
       setBrands(b);
@@ -99,6 +126,7 @@ export default function AdminDashboard() {
       setWoodwork(w);
       setDoorData(d);
       setUsers(u);
+      setCompanies(comp || []);
 
       let quoteData = q;
       try {
@@ -313,6 +341,123 @@ export default function AdminDashboard() {
     }
   }
 
+  // ===================== COMPANY OPERATIONS =====================
+
+  function openCreateCompanyModal() {
+    setEditCompany(null);
+    setCompId("");
+    setCompName("");
+    setCompEmail("");
+    setCompPhone("");
+    setCompGst("");
+    setCompPlan("trial");
+    setCompExpiry(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+    setCompStatus("active");
+    setCompMaxEmployees(20);
+    setCompMaxStorage(5000);
+    setCompCalculators({
+      interior: true,
+      construction: true,
+      painting: true,
+      electrical: true,
+      plumbing: true,
+      tiles: true,
+      furniture: true,
+      custom: true
+    });
+    setShowCompanyModal(true);
+  }
+
+  function openEditCompanyModal(company: any) {
+    setEditCompany(company);
+    setCompId(company.id);
+    setCompName(company.name);
+    setCompEmail(company.email);
+    setCompPhone(company.phone || "");
+    setCompGst(company.gstNumber || "");
+    setCompPlan(company.subscription?.plan || "trial");
+    setCompExpiry(company.subscription?.expiryDate ? new Date(company.subscription.expiryDate).toISOString().split("T")[0] : "");
+    setCompStatus(company.subscription?.status || "active");
+    setCompMaxEmployees(company.limits?.maxEmployees ?? 20);
+    setCompMaxStorage(company.limits?.maxStorage ?? 5000);
+    setCompCalculators(company.calculatorsEnabled || {
+      interior: true,
+      construction: true,
+      painting: true,
+      electrical: true,
+      plumbing: true,
+      tiles: true,
+      furniture: true,
+      custom: true
+    });
+    setShowCompanyModal(true);
+  }
+
+  async function handleCompanySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = {
+      name: compName,
+      email: compEmail,
+      phone: compPhone,
+      gstNumber: compGst,
+      subscription: {
+        plan: compPlan,
+        expiryDate: compExpiry ? new Date(compExpiry).toISOString() : new Date().toISOString(),
+        status: compStatus
+      },
+      limits: {
+        maxEmployees: compMaxEmployees,
+        maxStorage: compMaxStorage,
+        maxProjects: 100,
+        maxQuotes: 500,
+        maxCustomers: 200,
+        maxProducts: 1000
+      },
+      calculatorsEnabled: compCalculators
+    };
+
+    try {
+      if (editCompany) {
+        await api.auth.updateCompany(compId, payload);
+        triggerSuccess("Company updated successfully!");
+      } else {
+        await api.auth.createCompany(payload);
+        triggerSuccess("Company created successfully!");
+      }
+      setShowCompanyModal(false);
+      void loadData();
+    } catch (err: any) {
+      setErrorMsg("Failed to save company: " + err.message);
+    }
+  }
+
+  async function deleteCompany(id: string) {
+    if (!confirm("Are you sure you want to delete this company? This will delete all tenant configs.")) return;
+    try {
+      await api.auth.deleteCompany(id);
+      triggerSuccess("Company deleted successfully!");
+      void loadData();
+    } catch (err: any) {
+      setErrorMsg("Failed to delete company: " + err.message);
+    }
+  }
+
+  async function toggleCompanyStatus(company: any) {
+    const nextStatus = company.subscription?.status === "active" ? "suspended" : "active";
+    try {
+      await api.auth.updateCompany(company.id, {
+        subscription: {
+          ...company.subscription,
+          status: nextStatus
+        }
+      });
+      triggerSuccess(`Company status toggled to ${nextStatus}!`);
+      void loadData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    }
+  }
+
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -405,6 +550,14 @@ export default function AdminDashboard() {
               }`}
             >
               <FileText className="h-4 w-4" /> Customer Quotes
+            </button>
+            <button
+              onClick={() => setModeAndClear("companies")}
+              className={`flex h-11 items-center gap-3 rounded-lg px-3 text-left text-xs font-semibold uppercase tracking-wider transition ${
+                activeTab === "companies" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Building2 className="h-4 w-4" /> Companies
             </button>
           </nav>
         </aside>
@@ -841,6 +994,119 @@ export default function AdminDashboard() {
             </Card>
           )}
 
+          {/* TAB 6: COMPANIES MANAGER */}
+          {activeTab === "companies" && (
+            <div className="space-y-6">
+              {/* Analytics metrics */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Metric cardColor="border-l-4 border-l-indigo-600" title="Total Companies" value={`${companies.length}`} />
+                <Metric cardColor="border-l-4 border-l-emerald-600" title="Active Subscriptions" value={`${companies.filter(c => c.subscription?.status === 'active' && new Date(c.subscription?.expiryDate).getTime() > Date.now()).length}`} />
+                <Metric cardColor="border-l-4 border-l-rose-600" title="Expired/Suspended" value={`${companies.filter(c => c.subscription?.status !== 'active' || new Date(c.subscription?.expiryDate).getTime() <= Date.now()).length}`} />
+              </div>
+
+              <Card className="border-slate-200 shadow-sm bg-white">
+                <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
+                  <div>
+                    <CardTitle className="text-lg">Registered Company Tenants</CardTitle>
+                    <CardDescription>Provision company accounts, subscription status, and calculators availability.</CardDescription>
+                  </div>
+                  <Button
+                    onClick={openCreateCompanyModal}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2 px-3.5 rounded-lg flex items-center gap-1.5 shadow"
+                  >
+                    <Plus className="h-4.5 w-4.5" /> Provision Tenant
+                  </Button>
+                </CardHeader>
+                
+                <CardContent className="p-0 overflow-x-auto">
+                  {companies.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 font-bold text-sm">
+                      No companies provisioned yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3">Company Details</th>
+                          <th className="px-4 py-3">Subscription</th>
+                          <th className="px-4 py-3">Expiry Date</th>
+                          <th className="px-4 py-3">Limits</th>
+                          <th className="px-4 py-3 text-center">Status</th>
+                          <th className="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150">
+                        {companies.map((c) => {
+                          const isExpired = !c.subscription?.expiryDate || new Date(c.subscription.expiryDate).getTime() <= Date.now();
+                          const isActive = c.subscription?.status === 'active' && !isExpired;
+                          return (
+                            <tr key={c.id} className="hover:bg-slate-50/40">
+                              <td className="px-4 py-3 font-bold text-slate-800">
+                                {c.name}
+                                <span className="block text-[10px] text-slate-500 font-normal">
+                                  GST: {c.gstNumber || "N/A"} | Email: {c.email}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 capitalize text-slate-600 font-semibold">
+                                {c.subscription?.plan || "Trial"}
+                              </td>
+                              <td className="px-4 py-3 text-slate-500 font-medium">
+                                {c.subscription?.expiryDate ? new Date(c.subscription.expiryDate).toLocaleDateString() : "N/A"}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600 font-medium">
+                                Employees: {c.limits?.maxEmployees ?? 20} <br/>
+                                Storage: {(c.limits?.maxStorage ?? 5000) / 1000} GB
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                  isActive
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : isExpired
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}>
+                                  {isActive ? "Active" : isExpired ? "Expired" : "Suspended"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEditCompanyModal(c)}
+                                  className="h-8 text-[11px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                >
+                                  Edit limits
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => toggleCompanyStatus(c)}
+                                  className={`h-8 text-[11px] font-bold ${
+                                    c.subscription?.status === 'active'
+                                      ? "border-amber-200 text-amber-600 hover:bg-amber-50"
+                                      : "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                                  }`}
+                                >
+                                  {c.subscription?.status === 'active' ? "Suspend" : "Activate"}
+                                </Button>
+                                <button
+                                  onClick={() => deleteCompany(c.id)}
+                                  className="text-slate-400 hover:text-red-600 p-1.5 transition-colors inline-block align-middle"
+                                >
+                                  <Trash2 className="h-4.5 w-4.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
         </section>
       </div>
 
@@ -1005,6 +1271,152 @@ export default function AdminDashboard() {
           </Card>
         </div>
       )}
+
+      {/* PROVISION / EDIT COMPANY MODAL DIALOG */}
+      {showCompanyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-lg border-slate-200 shadow-2xl bg-white overflow-hidden max-h-[90vh] flex flex-col justify-between">
+            <CardHeader className="py-4 border-b border-slate-100 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">{editCompany ? "Edit Company Limits" : "Provision New Company Tenant"}</CardTitle>
+                <CardDescription className="text-[10px]">Define parameters, subscription tier, employee capacities, and storage limits.</CardDescription>
+              </div>
+              <button onClick={() => setShowCompanyModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+
+            <form onSubmit={handleCompanySubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Company Name</Label>
+                  <Input
+                    className="border-slate-300 h-9 font-bold"
+                    value={compName}
+                    required
+                    onChange={(e) => setCompName(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">GST Number</Label>
+                  <Input
+                    className="border-slate-300 h-9 font-mono"
+                    value={compGst}
+                    placeholder="22AAAAA1111A1Z1"
+                    onChange={(e) => setCompGst(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Email Address</Label>
+                  <Input
+                    type="email"
+                    className="border-slate-300 h-9"
+                    value={compEmail}
+                    required
+                    onChange={(e) => setCompEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Phone Number</Label>
+                  <Input
+                    className="border-slate-300 h-9"
+                    value={compPhone}
+                    onChange={(e) => setCompPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Subscription Plan</Label>
+                  <select
+                    className="h-9 w-full rounded border border-slate-300 bg-white px-2"
+                    value={compPlan}
+                    onChange={(e) => setCompPlan(e.target.value)}
+                  >
+                    <option value="trial">Free Trial</option>
+                    <option value="monthly">Monthly Subscription</option>
+                    <option value="yearly">Yearly Subscription</option>
+                    <option value="lifetime">Lifetime Access</option>
+                    <option value="expired">Expired</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Expiry Date</Label>
+                  <Input
+                    type="date"
+                    className="border-slate-300 h-9"
+                    value={compExpiry}
+                    required
+                    onChange={(e) => setCompExpiry(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Max Employee Count</Label>
+                  <Input
+                    type="number"
+                    className="border-slate-300 h-9 font-bold"
+                    value={compMaxEmployees}
+                    required
+                    onChange={(e) => setCompMaxEmployees(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Max Storage Limit (MB)</Label>
+                  <Input
+                    type="number"
+                    className="border-slate-300 h-9 font-bold"
+                    value={compMaxStorage}
+                    required
+                    onChange={(e) => setCompMaxStorage(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+
+              {/* Calculator Permissions */}
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <Label className="text-[10px] uppercase font-black text-slate-500">Enable/Disable Calculator Modules</Label>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {Object.keys(compCalculators).map((calc) => (
+                    <label
+                      key={calc}
+                      className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 transition"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={compCalculators[calc] !== false}
+                        onChange={(e) => setCompCalculators(prev => ({ ...prev, [calc]: e.target.checked }))}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      <span className="capitalize font-bold text-slate-700">{calc}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => setShowCompanyModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm"
+                >
+                  {editCompany ? "Apply Limitations" : "Provision Company"}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
     </main>
   );
 
@@ -1013,4 +1425,15 @@ export default function AdminDashboard() {
     setErrorMsg("");
     setSuccessMsg("");
   }
+}
+
+function Metric({ title, value, cardColor = "" }: { title: string; value: string; cardColor?: string }) {
+  return (
+    <Card className={`border-slate-200 shadow-sm overflow-hidden bg-white ${cardColor}`}>
+      <CardContent className="p-4">
+        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">{title}</div>
+        <div className="mt-1.5 text-base font-extrabold text-slate-950">{value}</div>
+      </CardContent>
+    </Card>
+  );
 }

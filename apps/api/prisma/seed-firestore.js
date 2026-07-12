@@ -141,6 +141,49 @@ async function main() {
   };
   await writeRecord("users", companyUser.id, companyUser);
 
+  const mockCompany = {
+    id: "company-user-id",
+    name: "CIMW Build Corp",
+    gstNumber: "07AAAAA1111A1Z1",
+    ownerId: "company-user-id",
+    email: "company@demo.com",
+    phone: "9555123456",
+    address: "123 Business Boulevard",
+    city: "New Delhi",
+    state: "Delhi",
+    country: "India",
+    logoUrl: "",
+    subscription: {
+      plan: "trial",
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "active"
+    },
+    limits: {
+      maxEmployees: 20,
+      maxStorage: 5000,
+      maxProjects: 100,
+      maxQuotes: 500,
+      maxCustomers: 200,
+      maxProducts: 1000
+    },
+    calculatorsEnabled: {
+      kitchen: true,
+      doors: true,
+      wardrobe: true,
+      construction: true,
+      painting: true,
+      electrical: true,
+      plumbing: true,
+      tiles: true,
+      furniture: true,
+      custom: true
+    },
+    storageUsed: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  await writeRecord("companies", mockCompany.id, mockCompany);
+
   const employeeUser = {
     id: "employee-user-id",
     email: "employee@demo.com",

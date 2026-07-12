@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthService } from "./auth.service.js";
 import { AuthGuard } from "./auth.guard.js";
 import { RolesGuard } from "./roles.guard.js";
@@ -66,6 +66,37 @@ export class AuthController {
     @Body("permissions") permissions: any
   ) {
     return this.authService.adminUpdateUserPermissions(userId, permissions);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/companies")
+  getAllCompanies() {
+    return this.authService.getAllCompaniesForAdmin();
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/companies")
+  createCompany(@Body() body: any) {
+    return this.authService.createCompanyForAdmin(body);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/companies/:id")
+  updateCompany(
+    @Param("id") companyId: string,
+    @Body() body: any
+  ) {
+    return this.authService.updateCompanyForAdmin(companyId, body);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Delete("admin/companies/:id")
+  deleteCompany(@Param("id") companyId: string) {
+    return this.authService.deleteCompanyForAdmin(companyId);
   }
 
   @Post("recover-password")

@@ -2,20 +2,20 @@
   "admin-user-id": {
     "id": "admin-user-id",
     "email": "admin@demo.com",
-    "password": "e418dff2790ae11c71fc4375ca234032:584188713eacc81e351db98f3d0add17d038b6946d4b4619ddb792849becbbea84bc2b965cf268a340dc75d1997e64f34ff271280acb51dce14e889e4d93c461",
+    "password": "499ea837bb27baade223b8895f151582:4d4894d56f562b549961175fc625572c02b7d058afad6ee81f34b95a8e321cf029d07fd1f34599965ce535970bb39f69ae91f9615192febe5ee2f5fb7229a68b",
     "name": "Admin User",
     "phone": "9123456789",
     "role": "admin",
     "pincode": "110001",
     "district": "New Delhi",
     "state": "Delhi",
-    "createdAt": "2026-07-12T07:00:09.972Z",
-    "updatedAt": "2026-07-12T07:00:09.973Z"
+    "createdAt": "2026-07-12T15:05:39.986Z",
+    "updatedAt": "2026-07-12T15:05:39.987Z"
   },
   "customer-user-id": {
     "id": "customer-user-id",
     "email": "customer@demo.com",
-    "password": "97dde2386a670243d2e35ab23f1b15c0:41a71874088fd9733e315959f385b72990f8a504bfc2a00043b1d64e7ee883ae10b979184218d1710e76eac59cd598cbb600fb0ec4655171f19877a6edea215a",
+    "password": "1bd1b547eaac3775490eff035f23415b:c776e48eca9aa1e54e8128ad14d4befe9d5e58c1232f42da939f04d3a77492402c2ff923335afac2e14d10c7c421b3d8c2b0aea46eeed86fea0411e2dfaaa43e",
     "name": "John Doe",
     "phone": "9876543210",
     "role": "customer",
@@ -24,13 +24,13 @@
     "state": "Delhi",
     "budgetRange": "5L - 10L",
     "purpose": "Self Use",
-    "createdAt": "2026-07-12T07:00:09.975Z",
-    "updatedAt": "2026-07-12T07:00:09.975Z"
+    "createdAt": "2026-07-12T15:05:39.988Z",
+    "updatedAt": "2026-07-12T15:05:39.988Z"
   },
   "company-user-id": {
     "id": "company-user-id",
     "email": "company@demo.com",
-    "password": "a6abe860e297b9b90833eefbca566a92:3970b135562084faed2786fbf3ed2b8cc9aeedf4552cc303aa03a8f02f18621075e8db1d1e4f550f49852dcd0cb1f02e2aab7ef1474e219f31a17ab8228c66fb",
+    "password": "731d61f6c69036959d1de2adda10da4c:787ba38fb2a12b80146b0a3f0403f8e7d680a3cf430e420420a07daed361031e2885339fdd7895ff750af6bdf91330ddacd0794726f9282b08082e66a8fcdf82",
     "name": "CIMW Build Corp",
     "phone": "9555123456",
     "role": "company",
@@ -41,13 +41,13 @@
     "businessMail": "billing@cimwbuild.com",
     "keyId": "0000",
     "permissions": "{\"kitchen\":true,\"doors\":true,\"wardrobe\":true,\"construction\":true}",
-    "createdAt": "2026-07-12T07:00:09.977Z",
-    "updatedAt": "2026-07-12T07:00:09.977Z"
+    "createdAt": "2026-07-12T15:05:39.990Z",
+    "updatedAt": "2026-07-12T15:05:39.990Z"
   },
   "employee-user-id": {
     "id": "employee-user-id",
     "email": "employee@demo.com",
-    "password": "9fe15f91eeb560d09470d9716e5d207c:21fbabdcdf8ac59c9aa1bef1180f9d0c67682869c65b1719d49317833c1d1f254a8558da649c9f5b2f64d531df5f20447c0e6704824a2ef2b4d8de6d41bdf3d3",
+    "password": "fcbbe79b452b88042749aba3a1a0857b:74fd7463279f66ec54b7188eaaa903185577064f191c252ba0f48373c8f9615e50ac20ad53ba1ffba7a4ca922e99a5783ca50f8ab3ebba91c08a45e1315435fd",
     "name": "Jane Designer",
     "phone": "9666123456",
     "role": "employee",
@@ -58,7 +58,7 @@
     "companyCode": "0000",
     "companyId": "company-user-id",
     "permissions": "{\"kitchen\":true,\"doors\":true,\"wardrobe\":true,\"construction\":false}",
-    "createdAt": "2026-07-12T07:00:09.978Z",
-    "updatedAt": "2026-07-12T07:00:09.978Z"
+    "createdAt": "2026-07-12T15:05:39.991Z",
+    "updatedAt": "2026-07-12T15:05:39.991Z"
   }
 }

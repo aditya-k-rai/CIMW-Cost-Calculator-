@@ -96,6 +96,18 @@ const methodLabels: Record<CalculatorMethod, string> = {
 export default function Dashboard() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const isSubscriptionExpired = user?.companySubscriptionStatus === "expired";
+
+  const formatCurrency = (amount: number) => {
+    if (user?.role === "employee" && user.permissions?.pricing === "hide") {
+      return "Hidden";
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("construction");
   const [employees, setEmployees] = useState<any[]>([]);
@@ -149,7 +161,7 @@ export default function Dashboard() {
   }
 
   // Handle employee permissions toggling
-  async function handleEmployeePermissionToggle(empId: string, key: string, val: boolean) {
+  async function handleEmployeePermissionToggle(empId: string, key: string, val: any) {
     try {
       const emp = employees.find((e) => e.id === empId);
       if (!emp) return;
@@ -825,7 +837,25 @@ export default function Dashboard() {
         {/* Tab Workspaces */}
         <section className="min-w-0">
           
-          {lockedTabs.has(activeTab) ? (
+          {isSubscriptionExpired ? (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="border-slate-200 shadow-md bg-white p-8 text-center max-w-xl mx-auto space-y-4 border-t-4 border-t-red-500 mt-8">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-600 mx-auto">
+                  <X className="h-8 w-8" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">Subscription Expired</h2>
+                <p className="text-sm text-red-600 leading-relaxed font-bold">
+                  Please Renew.
+                </p>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Your parent company subscription plan is currently expired or suspended. All cost calculations and quote generators have been temporarily disabled.
+                </p>
+                <p className="text-xs text-slate-400">
+                  Please ask your company administrator to complete payment to restore access.
+                </p>
+              </Card>
+            </motion.div>
+          ) : lockedTabs.has(activeTab) ? (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="border-slate-200 shadow-md bg-white p-8 text-center max-w-xl mx-auto space-y-4 border-t-4 border-t-amber-500 mt-8">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600 mx-auto">
@@ -1546,6 +1576,7 @@ export default function Dashboard() {
                           <th className="px-4 py-3 text-center">Doors</th>
                           <th className="px-4 py-3 text-center">Wardrobe</th>
                           <th className="px-4 py-3 text-center">Construction</th>
+                          <th className="px-4 py-3 text-center">Pricing Access</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-150">
@@ -1585,6 +1616,17 @@ export default function Dashboard() {
                                 onChange={(e) => handleEmployeePermissionToggle(emp.id, "construction", e.target.checked)}
                                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                               />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <select
+                                value={emp.permissions?.pricing || "show"}
+                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "pricing", e.target.value)}
+                                className="rounded border border-slate-300 text-xs px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
+                              >
+                                <option value="show">Show Prices</option>
+                                <option value="hide">Hide Prices</option>
+                                <option value="edit">Allow Edit Rates</option>
+                              </select>
                             </td>
                           </tr>
                         ))}
@@ -1685,6 +1727,18 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function ProductCard({ product, onAdd }: { product: any; onAdd: (product: any, quantity: number, rate: number, variant?: string) => void }) {
+  const { user } = useAuth();
+  const formatCurrency = (amount: number) => {
+    if (user?.role === "employee" && user.permissions?.pricing === "hide") {
+      return "Hidden";
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   const [quantity, setQuantity] = useState(1);
   const [variantIndex, setVariantIndex] = useState(0);
   
@@ -1775,6 +1829,18 @@ function CartPanel({
   onRemove: (id: string) => void;
   onQuote: () => void;
 }) {
+  const { user } = useAuth();
+  const formatCurrency = (amount: number) => {
+    if (user?.role === "employee" && user.permissions?.pricing === "hide") {
+      return "Hidden";
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   return (
     <Card className="self-start border-slate-200 shadow-sm">
       <CardHeader className="py-4 border-b border-slate-100">

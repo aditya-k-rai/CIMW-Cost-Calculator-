@@ -71,6 +71,93 @@ export class AuthService {
     return doc.exists ? doc.data() : null;
   }
 
+  private async checkEmployeeLimitAndGetCompanyId(companyCode: string): Promise<string> {
+    const snapshot = await this.db.collection("users").where("keyId", "==", companyCode).get();
+    const parentCompany = snapshot.docs.map((d: any) => d.data()).find((u: any) => u.role === "company");
+
+    if (!parentCompany) {
+      throw new BadRequestException(`No active Company found with company code: ${companyCode}`);
+    }
+
+    const companyDoc = await this.db.collection("companies").doc(parentCompany.id).get();
+    if (companyDoc.exists) {
+      const companyData = companyDoc.data();
+      const maxEmployees = companyData.limits?.maxEmployees ?? 20;
+
+      const employeeList = await this.db.collection("users").where("companyId", "==", parentCompany.id).get();
+      const employeeCount = employeeList.docs.filter((d: any) => d.data().role === "employee").length;
+
+      if (employeeCount >= maxEmployees) {
+        throw new BadRequestException(`This company has reached its maximum employee registration limit of ${maxEmployees}.`);
+      }
+    }
+
+    return parentCompany.id;
+  }
+
+  private async createCompanyRecord(userId: string, name: string, email: string, phone: string | null, gstNumber: string | null, district: string | null, state: string | null) {
+    const companyRecord = {
+      id: userId,
+      name,
+      gstNumber: gstNumber || "",
+      ownerId: userId,
+      email,
+      phone: phone || "",
+      address: "",
+      city: district || "",
+      state: state || "",
+      country: "India",
+      logoUrl: "",
+      subscription: {
+        plan: "trial",
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: "active"
+      },
+      limits: {
+        maxEmployees: 20,
+        maxStorage: 5000,
+        maxProjects: 100,
+        maxQuotes: 500,
+        maxCustomers: 200,
+        maxProducts: 1000
+      },
+      calculatorsEnabled: {
+        kitchen: true,
+        doors: true,
+        wardrobe: true,
+        construction: true,
+        painting: true,
+        electrical: true,
+        plumbing: true,
+        tiles: true,
+        furniture: true,
+        custom: true
+      },
+      storageUsed: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("companies").doc(userId).set(companyRecord);
+  }
+
+  private async getCompanySubscriptionStatus(user: any): Promise<string> {
+    if (user.role === "admin" || user.role === "customer") return "active";
+    const companyId = user.role === "company" ? user.id : user.companyId;
+    if (!companyId) return "active";
+
+    const doc = await this.db.collection("companies").doc(companyId).get();
+    if (doc.exists) {
+      const company = doc.data();
+      const sub = company.subscription || {};
+      const isExpired = 
+        sub.status !== "active" ||
+        sub.plan === "expired" ||
+        (sub.expiryDate && new Date(sub.expiryDate).getTime() < Date.now());
+      return isExpired ? "expired" : "active";
+    }
+    return "active";
+  }
+
   async register(body: any) {
     const {
       email,
@@ -122,14 +209,7 @@ export class AuthService {
       if (!companyCode || !position) {
         throw new BadRequestException("Company Code and Position are required for Employee signup");
       }
-      // Single where query to avoid composite indexes
-      const snapshot = await this.db.collection("users").where("keyId", "==", companyCode).get();
-      const parentCompany = snapshot.docs.map((d: any) => d.data()).find((u: any) => u.role === "company");
-
-      if (!parentCompany) {
-        throw new BadRequestException(`No active Company found with company code: ${companyCode}`);
-      }
-      companyId = parentCompany.id;
+      companyId = await this.checkEmployeeLimitAndGetCompanyId(companyCode);
       // Inherit company permissions initially, except construction by default
       permissions = JSON.stringify({
         kitchen: true,
@@ -175,12 +255,19 @@ export class AuthService {
 
     await this.db.collection("users").doc(userId).set(userRecord);
 
+    if (role === "company") {
+      await this.createCompanyRecord(userId, name, email, phone, gstNumber, district, state);
+    }
+
     const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
+
+    const mappedUser = this.mapUserResponse(userRecord);
+    const subStatus = await this.getCompanySubscriptionStatus(userRecord);
 
     return {
       success: true,
       token,
-      user: this.mapUserResponse(userRecord)
+      user: { ...mappedUser, companySubscriptionStatus: subStatus }
     };
   }
 
@@ -198,10 +285,13 @@ export class AuthService {
 
     const token = signJwt({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET);
 
+    const mappedUser = this.mapUserResponse(user);
+    const subStatus = await this.getCompanySubscriptionStatus(user);
+
     return {
       success: true,
       token,
-      user: this.mapUserResponse(user)
+      user: { ...mappedUser, companySubscriptionStatus: subStatus }
     };
   }
 
@@ -249,11 +339,14 @@ export class AuthService {
       }
 
       const token = signJwt({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET);
+      const mappedUser = this.mapUserResponse(user);
+      const subStatus = await this.getCompanySubscriptionStatus(user);
+
       return {
         success: true,
         registered: true,
         token,
-        user: this.mapUserResponse(user)
+        user: { ...mappedUser, companySubscriptionStatus: subStatus }
       };
     }
 
@@ -321,14 +414,7 @@ export class AuthService {
       if (!companyCode || !position) {
         throw new BadRequestException("Company Code and Position are required for Employee signup");
       }
-      // Single query to avoid composite index requirement
-      const snapshot = await this.db.collection("users").where("keyId", "==", companyCode).get();
-      const parentCompany = snapshot.docs.map((d: any) => d.data()).find((u: any) => u.role === "company");
-
-      if (!parentCompany) {
-        throw new BadRequestException(`No active Company found with company code: ${companyCode}`);
-      }
-      companyId = parentCompany.id;
+      companyId = await this.checkEmployeeLimitAndGetCompanyId(companyCode);
       permissions = JSON.stringify({
         kitchen: true,
         doors: true,
@@ -371,13 +457,20 @@ export class AuthService {
 
     await this.db.collection("users").doc(userId).set(userRecord);
 
+    if (role === "company") {
+      await this.createCompanyRecord(userId, displayName, email, phone, gstNumber, district, state);
+    }
+
     const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
+
+    const mappedUser = this.mapUserResponse(userRecord);
+    const subStatus = await this.getCompanySubscriptionStatus(userRecord);
 
     return {
       success: true,
       registered: true,
       token,
-      user: this.mapUserResponse(userRecord)
+      user: { ...mappedUser, companySubscriptionStatus: subStatus }
     };
   }
 
@@ -386,7 +479,9 @@ export class AuthService {
     if (!user) {
       throw new BadRequestException("User profile not found");
     }
-    return this.mapUserResponse(user);
+    const mappedUser = this.mapUserResponse(user);
+    const subStatus = await this.getCompanySubscriptionStatus(user);
+    return { ...mappedUser, companySubscriptionStatus: subStatus };
   }
 
   async updateProfile(userId: string, body: any) {
@@ -428,9 +523,12 @@ export class AuthService {
 
     await docRef.set(updated);
 
+    const mappedUser = this.mapUserResponse(updated);
+    const subStatus = await this.getCompanySubscriptionStatus(updated);
+
     return {
       success: true,
-      user: this.mapUserResponse(updated)
+      user: { ...mappedUser, companySubscriptionStatus: subStatus }
     };
   }
 
@@ -510,5 +608,86 @@ export class AuthService {
       success: true,
       user: this.mapUserResponse(user)
     };
+  }
+
+  async getAllCompaniesForAdmin() {
+    const snapshot = await this.db.collection("companies").get();
+    return snapshot.docs.map((d: any) => d.data());
+  }
+
+  async createCompanyForAdmin(body: any) {
+    const { name, email, phone, gstNumber, district, state, limits, calculatorsEnabled, plan, expiryDate } = body;
+
+    if (!name || !email) {
+      throw new BadRequestException("Company Name and Email are required");
+    }
+
+    const companyId = crypto.randomUUID();
+    const companyRecord = {
+      id: companyId,
+      name,
+      gstNumber: gstNumber || "",
+      ownerId: "",
+      email,
+      phone: phone || "",
+      address: "",
+      city: district || "",
+      state: state || "",
+      country: "India",
+      logoUrl: "",
+      subscription: {
+        plan: plan || "trial",
+        expiryDate: expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: "active"
+      },
+      limits: {
+        maxEmployees: limits?.maxEmployees ?? 20,
+        maxStorage: limits?.maxStorage ?? 5000,
+        maxProjects: limits?.maxProjects ?? 100,
+        maxQuotes: limits?.maxQuotes ?? 500,
+        maxCustomers: limits?.maxCustomers ?? 200,
+        maxProducts: limits?.maxProducts ?? 1000
+      },
+      calculatorsEnabled: {
+        kitchen: calculatorsEnabled?.kitchen !== false,
+        doors: calculatorsEnabled?.doors !== false,
+        wardrobe: calculatorsEnabled?.wardrobe !== false,
+        construction: calculatorsEnabled?.construction !== false,
+        painting: calculatorsEnabled?.painting !== false,
+        electrical: calculatorsEnabled?.electrical !== false,
+        plumbing: calculatorsEnabled?.plumbing !== false,
+        tiles: calculatorsEnabled?.tiles !== false,
+        furniture: calculatorsEnabled?.furniture !== false,
+        custom: calculatorsEnabled?.custom !== false
+      },
+      storageUsed: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await this.db.collection("companies").doc(companyId).set(companyRecord);
+    return { success: true, company: companyRecord };
+  }
+
+  async updateCompanyForAdmin(companyId: string, body: any) {
+    const docRef = this.db.collection("companies").doc(companyId);
+    const current = (await docRef.get()).data();
+    if (!current) {
+      throw new BadRequestException("Company not found");
+    }
+
+    const updated = {
+      ...current,
+      ...body,
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(updated);
+    return { success: true, company: updated };
+  }
+
+  async deleteCompanyForAdmin(companyId: string) {
+    await this.db.collection("companies").doc(companyId).delete();
+    return { success: true };
   }
 }
