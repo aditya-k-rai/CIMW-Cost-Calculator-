@@ -91,11 +91,11 @@ export const api = {
       return handleResponse(res);
     },
 
-    async updateEmployeePermissions(id: string, permissions: any) {
+    async updateEmployeePermissions(id: string, permissions: any, position?: string) {
       const res = await fetch(`${API_URL}/auth/employees/${id}/permissions`, {
         method: "POST",
         headers: getHeaders(),
-        body: JSON.stringify({ permissions }),
+        body: JSON.stringify({ permissions, position }),
       });
       return handleResponse(res);
     },
@@ -398,6 +398,47 @@ export const api = {
     async get() {
       const res = await fetch(`${API_URL}/quotes`, {
         method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    async delete(id: string) {
+      const res = await fetch(`${API_URL}/quotes/${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+  },
+
+  // ===================== PROJECTS =====================
+  projects: {
+    async get() {
+      const res = await fetch(`${API_URL}/projects`, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+    async create(body: any) {
+      const res = await fetch(`${API_URL}/projects`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+    async update(id: string, body: any) {
+      const res = await fetch(`${API_URL}/projects/${id}`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+    async delete(id: string) {
+      const res = await fetch(`${API_URL}/projects/${id}`, {
+        method: "DELETE",
         headers: getHeaders(),
       });
       return handleResponse(res);

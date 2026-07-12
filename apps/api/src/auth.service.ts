@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import { FirebaseService } from "./firebase.service.js";
 import { signJwt } from "./jwt.util.js";
 import * as crypto from "crypto";
@@ -612,7 +612,7 @@ export class AuthService {
     return employees.map((emp: any) => this.mapUserResponse(emp));
   }
 
-  async updateEmployeePermissions(companyId: string, employeeId: string, permissions: any) {
+  async updateEmployeePermissions(companyId: string, employeeId: string, permissions: any, position?: string) {
     const employee = await this.findUserById(employeeId);
     if (!employee || employee.companyId !== companyId) {
       throw new BadRequestException("Employee not found in your company");
@@ -620,12 +620,21 @@ export class AuthService {
 
     const updatedPermissions = typeof permissions === "string" ? permissions : JSON.stringify(permissions);
 
-    await this.db.collection("users").doc(employeeId).update({
+    const updatePayload: any = {
       permissions: updatedPermissions,
       updatedAt: new Date().toISOString()
-    });
+    };
+
+    if (position !== undefined) {
+      updatePayload.position = position;
+    }
+
+    await this.db.collection("users").doc(employeeId).update(updatePayload);
 
     employee.permissions = updatedPermissions;
+    if (position !== undefined) {
+      employee.position = position;
+    }
 
     return {
       success: true,
@@ -785,6 +794,193 @@ export class AuthService {
 
   async deleteSubscriptionKeyForAdmin(keyId: string) {
     await this.db.collection("subscription_keys").doc(keyId).delete();
+    return { success: true };
+  }
+
+  async getProjectsForUser(user: any) {
+    if (user.role === "admin") {
+      const snap = await this.db.collection("projects").get();
+      return snap.docs.map((d: any) => d.data());
+    }
+
+    if (user.role === "company") {
+      const snap = await this.db.collection("projects").where("companyId", "==", user.userId).get();
+      return snap.docs.map((d: any) => d.data());
+    }
+
+    if (user.role === "employee") {
+      const companyId = user.companyId;
+      if (!companyId) return [];
+      const snap = await this.db.collection("projects").where("companyId", "==", companyId).get();
+      const allProjects = snap.docs.map((d: any) => d.data());
+      return allProjects.filter((p: any) => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(user.userId));
+    }
+
+    if (user.role === "customer") {
+      const snap = await this.db.collection("projects").get();
+      const allProjects = snap.docs.map((d: any) => d.data());
+      return allProjects.filter((p: any) => 
+        (p.customerDetails && p.customerDetails.email === user.email) || p.customerId === user.userId
+      );
+    }
+
+    return [];
+  }
+
+  async createProject(user: any, body: any) {
+    const companyId = user.role === "company" ? user.userId : user.companyId;
+    if (!companyId) {
+      throw new BadRequestException("You must be linked to a company to create a project.");
+    }
+
+    if (user.role === "employee") {
+      const parsedPerms = user.permissions || {};
+      const canCreate = parsedPerms.project?.create ?? false;
+      if (!canCreate) {
+        throw new ForbiddenException("You do not have permission to create projects.");
+      }
+    }
+
+    const { name, customerDetails, expectedCompletionDate, assignedEmployeeIds, notes } = body;
+    if (!name || !customerDetails?.name) {
+      throw new BadRequestException("Project Name and Customer Name are required.");
+    }
+
+    const projectId = crypto.randomUUID();
+    const projectRecord = {
+      id: projectId,
+      name,
+      customerDetails: {
+        name: customerDetails.name,
+        phone: customerDetails.phone || "",
+        email: customerDetails.email || "",
+        address: customerDetails.address || ""
+      },
+      companyId,
+      assignedEmployeeIds: assignedEmployeeIds || [],
+      status: "active",
+      progressPercentage: 0,
+      projectImages: [],
+      projectNotes: notes || "",
+      expectedCompletionDate: expectedCompletionDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      completionDate: null,
+      timeline: [
+        {
+          date: new Date().toISOString(),
+          title: "Project Provisioned",
+          notes: `Project "${name}" was created.`,
+          userName: user.name
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await this.db.collection("projects").doc(projectId).set(projectRecord);
+    return { success: true, project: projectRecord };
+  }
+
+  async updateProject(user: any, projectId: string, body: any) {
+    const docRef = this.db.collection("projects").doc(projectId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      throw new BadRequestException("Project not found.");
+    }
+
+    const project = doc.data();
+    const userCompanyId = user.role === "company" ? user.userId : user.companyId;
+    if (user.role !== "admin" && project.companyId !== userCompanyId) {
+      throw new ForbiddenException("You do not have access to this project.");
+    }
+
+    if (user.role === "employee" && (!project.assignedEmployeeIds || !project.assignedEmployeeIds.includes(user.userId))) {
+      throw new ForbiddenException("You are not assigned to this project.");
+    }
+
+    const {
+      name,
+      customerDetails,
+      assignedEmployeeIds,
+      status,
+      progressPercentage,
+      projectImages,
+      notes,
+      expectedCompletionDate,
+      timelineEvent
+    } = body;
+
+    if (user.role === "employee") {
+      const parsedPerms = user.permissions || {};
+      
+      if (progressPercentage !== undefined && progressPercentage !== project.progressPercentage) {
+        if (parsedPerms.project?.updateProgress === false) {
+          throw new ForbiddenException("You do not have permission to update project progress.");
+        }
+      }
+      if (projectImages !== undefined) {
+        if (parsedPerms.project?.uploadImages === false) {
+          throw new ForbiddenException("You do not have permission to upload project images.");
+        }
+      }
+      if (status !== undefined && status !== project.status) {
+        if (parsedPerms.project?.close === false) {
+          throw new ForbiddenException("You do not have permission to change project status.");
+        }
+      }
+      if (name !== undefined || customerDetails !== undefined || assignedEmployeeIds !== undefined) {
+        if (parsedPerms.project?.edit === false) {
+          throw new ForbiddenException("You do not have permission to edit project metadata.");
+        }
+      }
+    }
+
+    const updatedTimeline = [...(project.timeline || [])];
+    if (timelineEvent) {
+      updatedTimeline.push({
+        date: new Date().toISOString(),
+        title: timelineEvent.title || "Log Event",
+        notes: timelineEvent.notes || "",
+        userName: user.name
+      });
+    }
+
+    const updated = {
+      ...project,
+      ...(name !== undefined && { name }),
+      ...(customerDetails !== undefined && { customerDetails }),
+      ...(assignedEmployeeIds !== undefined && { assignedEmployeeIds }),
+      ...(status !== undefined && { 
+        status,
+        completionDate: status === "closed" ? new Date().toISOString() : null
+      }),
+      ...(progressPercentage !== undefined && { progressPercentage: Number(progressPercentage) }),
+      ...(projectImages !== undefined && { projectImages }),
+      ...(notes !== undefined && { projectNotes: notes }),
+      ...(expectedCompletionDate !== undefined && { expectedCompletionDate }),
+      timeline: updatedTimeline,
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(updated);
+    return { success: true, project: updated };
+  }
+
+  async deleteProject(user: any, projectId: string) {
+    if (user.role !== "admin" && user.role !== "company") {
+      throw new ForbiddenException("Only administrators and company owners can delete projects.");
+    }
+
+    const docRef = this.db.collection("projects").doc(projectId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      throw new BadRequestException("Project not found.");
+    }
+
+    if (user.role === "company" && doc.data().companyId !== user.userId) {
+      throw new ForbiddenException("You do not own this project.");
+    }
+
+    await docRef.delete();
     return { success: true };
   }
 }

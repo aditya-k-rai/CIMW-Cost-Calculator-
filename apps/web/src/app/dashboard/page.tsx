@@ -21,7 +21,16 @@ import {
   X,
   Lock,
   Phone,
-  FileText
+  FileText,
+  Folder,
+  Calendar,
+  Clock,
+  Edit,
+  Copy,
+  Check,
+  CheckSquare,
+  FileDown,
+  Printer
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "@/context/AuthContext";
@@ -52,7 +61,7 @@ declare module "jspdf" {
   }
 }
 
-type WorkspaceTab = "construction" | "modular-kitchen" | "interior" | "wardrobe" | "quote" | "employees" | "quote-history";
+type WorkspaceTab = "overview" | "projects" | "construction" | "modular-kitchen" | "interior" | "wardrobe" | "quote" | "employees" | "quote-history";
 
 type CartItem = {
   id: string;
@@ -109,46 +118,145 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("construction");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("overview");
   const [employees, setEmployees] = useState<any[]>([]);
   const [quoteList, setQuoteList] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+
+  // Employee detail permission editor states
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [selectedEmployeeRole, setSelectedEmployeeRole] = useState<string>("Site Engineer");
+  const [calcsAccess, setCalcsAccess] = useState<any>({ construction: true, interior: true, kitchen: true, wardrobe: true });
+  const [priceMode, setPriceMode] = useState<string>("show");
+  const [quotePerms, setQuotePerms] = useState<any>({ create: true, edit: true, delete: true, duplicate: true, downloadPdf: true, print: true });
+  const [projPerms, setProjPerms] = useState<any>({ access: true, create: true, edit: true, close: true, uploadImages: true, updateProgress: true });
+
+  // Project management states
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [projName, setProjName] = useState("");
+  const [custName, setCustName] = useState("");
+  const [custPhone, setCustPhone] = useState("");
+  const [custEmail, setCustEmail] = useState("");
+  const [custAddress, setCustAddress] = useState("");
+  const [projExpectedDate, setProjExpectedDate] = useState("");
+  const [projAssignedEmployees, setProjAssignedEmployees] = useState<string[]>([]);
+  const [projNotes, setProjNotes] = useState("");
+  const [projProgressInput, setProjProgressInput] = useState(0);
+  const [projImageInput, setProjImageInput] = useState("");
+  const [timelineTitleInput, setTimelineTitleInput] = useState("");
+  const [timelineNotesInput, setTimelineNotesInput] = useState("");
+
+  const [selectedProjectIdForQuote, setSelectedProjectIdForQuote] = useState("");
+
+  const ROLE_PRESETS = {
+    "Site Engineer": {
+      calculators: { construction: true, interior: false, kitchen: false, wardrobe: false },
+      pricingMode: "hide",
+      quote: { create: true, edit: false, delete: false, duplicate: false, downloadPdf: true, print: true },
+      project: { access: true, create: false, edit: false, close: false, uploadImages: true, updateProgress: true }
+    },
+    "Project Manager": {
+      calculators: { construction: true, interior: true, kitchen: true, wardrobe: true },
+      pricingMode: "show",
+      quote: { create: true, edit: true, delete: false, duplicate: true, downloadPdf: true, print: true },
+      project: { access: true, create: true, edit: true, close: true, uploadImages: true, updateProgress: true }
+    },
+    "Interior Designer": {
+      calculators: { construction: false, interior: true, kitchen: true, wardrobe: true },
+      pricingMode: "show",
+      quote: { create: true, edit: true, delete: false, duplicate: true, downloadPdf: true, print: true },
+      project: { access: true, create: false, edit: false, close: false, uploadImages: true, updateProgress: true }
+    },
+    "Business Development Executive": {
+      calculators: { construction: true, interior: true, kitchen: true, wardrobe: true },
+      pricingMode: "no-prices",
+      quote: { create: true, edit: true, delete: false, duplicate: true, downloadPdf: true, print: true },
+      project: { access: true, create: false, edit: false, close: false, uploadImages: false, updateProgress: false }
+    }
+  };
+
+  // Parsed user permissions dictionary
+  const userPermissions = useMemo(() => {
+    if (!user) return {};
+    try {
+      return typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions || {});
+    } catch {
+      return user.permissions || {};
+    }
+  }, [user]);
+
+  const hasConstructionAccess = user?.role !== "employee" || userPermissions.calculators?.construction !== false;
+  const hasKitchenAccess = user?.role !== "employee" || userPermissions.calculators?.kitchen !== false;
+  const hasInteriorAccess = user?.role !== "employee" || userPermissions.calculators?.doors !== false;
+  const hasWardrobeAccess = user?.role !== "employee" || userPermissions.calculators?.wardrobe !== false;
+
+  const formatIndividualPrice = (amount: number) => {
+    const mode = userPermissions.pricingMode;
+    if (user?.role === "employee" && (mode === "hide" || mode === "no-prices")) {
+      return "Hidden";
+    }
+    return formatCurrency(amount);
+  };
+
+  const formatTotalAmount = (amount: number) => {
+    const mode = userPermissions.pricingMode;
+    if (user?.role === "employee" && mode === "no-prices") {
+      return "Hidden";
+    }
+    return formatCurrency(amount);
+  };
 
   // Memoized tabs configuration based on role
   const availableTabs = useMemo(() => {
+    const role = user?.role;
+    const perms = userPermissions;
+    
     const standardTabs = [
+      { id: "overview" as WorkspaceTab, label: "Overview", icon: Calculator },
       { id: "construction" as WorkspaceTab, label: "Construction", icon: Building2 },
       { id: "modular-kitchen" as WorkspaceTab, label: "Kitchen", icon: ChefHat },
       { id: "interior" as WorkspaceTab, label: "Interior", icon: DoorOpen },
       { id: "wardrobe" as WorkspaceTab, label: "Wardrobe", icon: Layers3 },
-      { id: "quote" as WorkspaceTab, label: "Quote", icon: Send },
+      { id: "quote" as WorkspaceTab, label: "New Quote", icon: Send },
+      { id: "quote-history" as WorkspaceTab, label: "Quotation History", icon: FileText }
     ];
 
-    if (user?.role === "company") {
+    if (role === "company") {
       return [
-        ...standardTabs,
-        { id: "employees" as WorkspaceTab, label: "Employees", icon: User },
-        { id: "quote-history" as WorkspaceTab, label: "Quote History", icon: FileText }
+        { id: "overview" as WorkspaceTab, label: "Overview", icon: Calculator },
+        { id: "construction" as WorkspaceTab, label: "Construction", icon: Building2 },
+        { id: "modular-kitchen" as WorkspaceTab, label: "Kitchen", icon: ChefHat },
+        { id: "interior" as WorkspaceTab, label: "Interior", icon: DoorOpen },
+        { id: "wardrobe" as WorkspaceTab, label: "Wardrobe", icon: Layers3 },
+        { id: "projects" as WorkspaceTab, label: "Projects", icon: Folder },
+        { id: "quote" as WorkspaceTab, label: "New Quote", icon: Send },
+        { id: "quote-history" as WorkspaceTab, label: "Quotation History", icon: FileText }
       ];
     }
-    return [
-      ...standardTabs,
-      { id: "quote-history" as WorkspaceTab, label: "Quote History", icon: FileText }
-    ];
-  }, [user]);
 
-  // Memoized permission restrictions
-  const lockedTabs = useMemo(() => {
-    if (!user || user.role === "admin") return new Set<string>();
-    const perms = user.permissions || {};
-    const locked = new Set<string>();
-    
-    if (perms.kitchen === false) locked.add("modular-kitchen");
-    if (perms.doors === false) locked.add("interior");
-    if (perms.wardrobe === false) locked.add("wardrobe");
-    if (perms.construction === false) locked.add("construction");
-    
-    return locked;
-  }, [user]);
+    if (role === "employee") {
+      const showProjects = perms.project?.access !== false;
+      return [
+        { id: "overview" as WorkspaceTab, label: "Overview", icon: Calculator },
+        ...(perms.calculators?.construction !== false ? [{ id: "construction" as WorkspaceTab, label: "Construction", icon: Building2 }] : []),
+        ...(perms.calculators?.kitchen !== false ? [{ id: "modular-kitchen" as WorkspaceTab, label: "Kitchen", icon: ChefHat }] : []),
+        ...(perms.calculators?.doors !== false ? [{ id: "interior" as WorkspaceTab, label: "Interior", icon: DoorOpen }] : []),
+        ...(perms.calculators?.wardrobe !== false ? [{ id: "wardrobe" as WorkspaceTab, label: "Wardrobe", icon: Layers3 }] : []),
+        ...(showProjects ? [{ id: "projects" as WorkspaceTab, label: "Projects", icon: Folder }] : []),
+        { id: "quote" as WorkspaceTab, label: "New Quote", icon: Send },
+        { id: "quote-history" as WorkspaceTab, label: "Quotation History", icon: FileText }
+      ];
+    }
+
+    return standardTabs;
+  }, [user, userPermissions]);
+
+  const userProjects = useMemo(() => {
+    if (!user) return [];
+    if (user.role === "company") return projects;
+    return projects.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(user.id));
+  }, [projects, user]);
 
   // Load employee logs
   async function loadEmployees() {
@@ -160,50 +268,65 @@ export default function Dashboard() {
     }
   }
 
-  // Handle employee permissions toggling
-  async function handleEmployeePermissionToggle(empId: string, key: string, val: any) {
-    try {
-      const emp = employees.find((e) => e.id === empId);
-      if (!emp) return;
-
-      const currentPerms = emp.permissions || {};
-      const updatedPermissions = {
-        ...currentPerms,
-        [key]: val
-      };
-
-      await api.auth.updateEmployeePermissions(empId, updatedPermissions);
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === empId ? { ...e, permissions: updatedPermissions } : e))
-      );
-    } catch (err: any) {
-      console.error("Failed to toggle employee permission:", err.message);
-    }
-  }
-
   // Load quote history
   async function loadQuoteHistory() {
     try {
       const data = await api.quotes.get();
-      setQuoteList(data);
+      setQuoteList(data || []);
     } catch (err: any) {
       console.error("Failed to load quote history:", err.message);
     }
   }
 
-  // Fetch company employees if role is company
-  useEffect(() => {
+  async function loadAllDashboardData() {
+    try {
+      const p = await api.projects.get();
+      setProjects(p || []);
+    } catch (err) {
+      console.warn("Failed to load projects:", err);
+    }
     if (user?.role === "company") {
       void loadEmployees();
     }
+    void loadQuoteHistory();
+  }
+
+  useEffect(() => {
+    if (user) {
+      void loadAllDashboardData();
+    }
   }, [user]);
 
-  // Fetch quote history when active tab is quote history
-  useEffect(() => {
-    if (activeTab === "quote-history" && user) {
-      void loadQuoteHistory();
+  // Custom presets template applicator
+  function applyRoleTemplate(roleName: string) {
+    setSelectedEmployeeRole(roleName);
+    const preset = ROLE_PRESETS[roleName as keyof typeof ROLE_PRESETS];
+    if (preset) {
+      setCalcsAccess(preset.calculators);
+      setPriceMode(preset.pricingMode);
+      setQuotePerms(preset.quote);
+      setProjPerms(preset.project);
     }
-  }, [activeTab, user]);
+  }
+
+  async function handleSaveEmployeePermissions(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedEmployee) return;
+    try {
+      const permissionsPayload = {
+        calculators: calcsAccess,
+        pricingMode: priceMode,
+        quote: quotePerms,
+        project: projPerms
+      };
+      await api.auth.updateEmployeePermissions(selectedEmployee.id, permissionsPayload, selectedEmployeeRole);
+      alert("Employee role and permissions updated successfully!");
+      setSelectedEmployee(null);
+      void loadAllDashboardData();
+    } catch (err: any) {
+      alert("Failed to update employee permissions: " + err.message);
+    }
+  }
   
   // Data lists loaded from NestJS
   const [dbProducts, setDbProducts] = useState<any[]>([]);
@@ -515,8 +638,24 @@ export default function Dashboard() {
 
   // Submit quote
   async function submitQuote(values: any) {
+    if (user?.role === "employee" && userPermissions.quote?.create === false) {
+      alert("You do not have permission to create quotations.");
+      return;
+    }
+
     setQuoteLoading(true);
     setQuoteMessage("");
+
+    let calculatorUsed = "modular-kitchen";
+    if (cart.some(item => item.calculator === "wardrobe")) {
+      calculatorUsed = "wardrobe";
+    } else if (doorsSubtotal > 0) {
+      calculatorUsed = "interior";
+    } else if (constructionResult) {
+      calculatorUsed = "construction";
+    }
+
+    const selectedProj = projects.find(p => p.id === selectedProjectIdForQuote);
 
     const payload = {
       ...values,
@@ -533,7 +672,11 @@ export default function Dashboard() {
         tax: doorsTaxAmount,
         installation: doorsInstallation,
         total: doorsGrandTotal
-      }
+      },
+      projectId: selectedProjectIdForQuote || null,
+      projectName: selectedProj ? selectedProj.name : null,
+      calculatorUsed,
+      createdByUserId: user?.id || "unknown"
     };
 
     try {
@@ -549,13 +692,15 @@ export default function Dashboard() {
         console.error("Firebase Database write failed:", fbErr);
       }
 
-      setQuoteMessage(res.message || "Quote request submitted successfully (Synced to Firestore)!");
+      setQuoteMessage(res.message || "Quote request submitted successfully!");
       quoteForm.reset();
       setCart([]);
       setWoodworkArea(0);
       setSelectedWoodworkOptions({});
+      setSelectedProjectIdForQuote("");
+      void loadAllDashboardData();
     } catch (err: any) {
-      setQuoteMessage(`Quote capturing issue: ${err.message}. Please verify the NestJS API server connection.`);
+      setQuoteMessage(`Quote capturing issue: ${err.message}`);
     } finally {
       setQuoteLoading(false);
     }
@@ -563,6 +708,10 @@ export default function Dashboard() {
 
   // PDF generation
   function downloadPDF() {
+    if (user?.role === "employee" && userPermissions.quote?.downloadPdf === false) {
+      alert("You do not have permission to download quotation PDFs.");
+      return;
+    }
     const doc = new jsPDF();
     const customer = quoteForm.getValues("customerName") || user?.name || "Customer";
     
@@ -784,7 +933,7 @@ export default function Dashboard() {
             {availableTabs.map((tab) => {
               const Icon = tab.icon;
               const selected = activeTab === tab.id;
-              const isLocked = lockedTabs.has(tab.id);
+              const isLocked = false;
               return (
                 <button
                   key={tab.id}
@@ -855,7 +1004,7 @@ export default function Dashboard() {
                 </p>
               </Card>
             </motion.div>
-          ) : lockedTabs.has(activeTab) ? (
+          ) : ((activeTab === "construction" && !hasConstructionAccess) || (activeTab === "modular-kitchen" && !hasKitchenAccess) || (activeTab === "interior" && !hasInteriorAccess) || (activeTab === "wardrobe" && !hasWardrobeAccess)) ? (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="border-slate-200 shadow-md bg-white p-8 text-center max-w-xl mx-auto space-y-4 border-t-4 border-t-amber-500 mt-8">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600 mx-auto">
@@ -1409,6 +1558,32 @@ export default function Dashboard() {
                 <CardContent className="p-5">
                   <form className="grid gap-4" onSubmit={quoteForm.handleSubmit(submitQuote)}>
                     <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs font-semibold text-slate-700">Link to Customer Project</Label>
+                        <select
+                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:border-indigo-500 mt-1"
+                          value={selectedProjectIdForQuote}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedProjectIdForQuote(val);
+                            const selectedProj = userProjects.find(p => p.id === val);
+                            if (selectedProj) {
+                              quoteForm.setValue("customerName", selectedProj.customerDetails?.name || "");
+                              quoteForm.setValue("phone", selectedProj.customerDetails?.phone || "");
+                              quoteForm.setValue("email", selectedProj.customerDetails?.email || "");
+                              quoteForm.setValue("city", selectedProj.customerDetails?.address || "");
+                            }
+                          }}
+                        >
+                          <option value="">-- Optional: Select Customer Project to Auto-Populate Details --</option>
+                          {userProjects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} (Client: {p.customerDetails?.name})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <Field label="Customer Name" error={quoteForm.formState.errors.customerName?.message as any}>
                         <Input className="border-slate-300" {...quoteForm.register("customerName")} />
                       </Field>
@@ -1526,115 +1701,262 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* TAB 6: EMPLOYEES MANAGER */}
-          {activeTab === "employees" && user?.role === "company" && (
+          {/* TAB 1: OVERVIEW DASHBOARD */}
+          {activeTab === "overview" && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <Card className="border-slate-200 shadow-sm bg-white border-l-4 border-l-purple-600">
-                <CardHeader className="py-4 border-b border-slate-100">
-                  <CardTitle className="text-sm font-bold text-slate-800">Company Invitation Link & Code</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 space-y-2 text-xs">
-                  <p className="text-slate-600">
-                    Share this company code with your employees. They must enter it during registration to link their account to your firm:
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold bg-slate-100 text-slate-800 px-3 py-2.5 rounded-lg border border-slate-200 text-sm select-all">
-                      {user.keyId}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(user.keyId || "");
-                        alert("Company Code copied to clipboard!");
-                      }}
+              {/* Calculators grid at top */}
+              <div>
+                <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4">Cost Estimator Calculators</h2>
+                <div className="grid gap-4 sm:grid-cols-4">
+                  {[
+                    { id: "construction", label: "Construction Calculator", icon: Building2, active: hasConstructionAccess },
+                    { id: "interior", label: "Interior Calculator", icon: DoorOpen, active: hasInteriorAccess },
+                    { id: "modular-kitchen", label: "Kitchen Calculator", icon: ChefHat, active: hasKitchenAccess },
+                    { id: "wardrobe", label: "Wardrobe Calculator", icon: Layers3, active: hasWardrobeAccess }
+                  ].map((calc) => (
+                    <Card
+                      key={calc.id}
+                      onClick={() => calc.active && setActiveTab(calc.id as WorkspaceTab)}
+                      className={`cursor-pointer border-slate-200 hover:shadow-md transition bg-white relative overflow-hidden ${
+                        !calc.active ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
                     >
-                      Copy Code
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                      <CardContent className="p-5 flex items-center gap-4">
+                        <div className={`p-3 rounded-lg ${!calc.active ? "bg-slate-100 text-slate-400" : "bg-indigo-50 text-indigo-600"}`}>
+                          <calc.icon className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{calc.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {calc.active ? "Open Calculator Workspace" : "Access Locked by Admin"}
+                          </div>
+                        </div>
+                        {!calc.active && (
+                          <Lock className="h-4 w-4 text-slate-400 absolute top-3 right-3" />
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
 
-              <Card className="border-slate-200 shadow-sm bg-white">
-                <CardHeader className="py-4 border-b border-slate-100">
-                  <CardTitle className="text-lg">My Employees & Permissions</CardTitle>
-                  <CardDescription>Configure which calculator modules are accessible for each employee.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0 overflow-x-auto">
-                  {employees.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 italic text-xs">
-                      No registered employees linked to your company yet.
+              {/* Employee Management Section below */}
+              {user?.role === "company" && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-t border-slate-200 pt-6">
+                    <div>
+                      <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Employee Workspace Directory</h2>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Define employee settings, calculators permission matrix, and view login histories.</p>
                     </div>
+                    
+                    {/* Share Invitation Code */}
+                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-700">
+                      <span>Invitation Code: {user.keyId}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(user.keyId || "");
+                          alert("Company Code copied to clipboard!");
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase ml-1.5"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  {employees.length === 0 ? (
+                    <Card className="border-slate-200 shadow-sm bg-white p-8 text-center text-slate-400 italic text-xs">
+                      No linked employees registered yet. Invite them using your company key ID!
+                    </Card>
                   ) : (
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3">Employee Name</th>
-                          <th className="px-4 py-3">Email Address</th>
-                          <th className="px-4 py-3">Role/Position</th>
-                          <th className="px-4 py-3 text-center">Kitchen</th>
-                          <th className="px-4 py-3 text-center">Doors</th>
-                          <th className="px-4 py-3 text-center">Wardrobe</th>
-                          <th className="px-4 py-3 text-center">Construction</th>
-                          <th className="px-4 py-3 text-center">Pricing Access</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {employees.map((emp) => (
-                          <tr key={emp.id} className="hover:bg-slate-50/40">
-                            <td className="px-4 py-3 font-bold text-slate-800">{emp.name}</td>
-                            <td className="px-4 py-3 text-slate-600">{emp.email}</td>
-                            <td className="px-4 py-3 capitalize text-slate-600 font-medium">{emp.position || "Staff"}</td>
-                            <td className="px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={emp.permissions?.kitchen !== false}
-                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "kitchen", e.target.checked)}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={emp.permissions?.doors !== false}
-                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "doors", e.target.checked)}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={emp.permissions?.wardrobe !== false}
-                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "wardrobe", e.target.checked)}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
-                                checked={emp.permissions?.construction !== false}
-                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "construction", e.target.checked)}
-                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <select
-                                value={emp.permissions?.pricing || "show"}
-                                onChange={(e) => handleEmployeePermissionToggle(emp.id, "pricing", e.target.value)}
-                                className="rounded border border-slate-300 text-xs px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
-                              >
-                                <option value="show">Show Prices</option>
-                                <option value="hide">Hide Prices</option>
-                                <option value="edit">Allow Edit Rates</option>
-                              </select>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {employees.map((emp) => {
+                        let empPerms: any = {};
+                        try {
+                          empPerms = typeof emp.permissions === "string" ? JSON.parse(emp.permissions) : (emp.permissions || {});
+                        } catch {
+                          empPerms = {};
+                        }
+                        const activeCalcs: string[] = [];
+                        if (empPerms.calculators?.construction !== false) activeCalcs.push("Construction");
+                        if (empPerms.calculators?.doors !== false) activeCalcs.push("Interior");
+                        if (empPerms.calculators?.kitchen !== false) activeCalcs.push("Kitchen");
+                        if (empPerms.calculators?.wardrobe !== false) activeCalcs.push("Wardrobe");
+
+                        const quotesCount = quoteList.filter(q => q.createdByUserId === emp.id).length;
+                        const projCount = projects.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(emp.id)).length;
+
+                        return (
+                          <Card
+                            key={emp.id}
+                            onClick={() => {
+                              setSelectedEmployee(emp);
+                              setSelectedEmployeeRole(emp.position || "Site Engineer");
+                              setCalcsAccess(empPerms.calculators || { construction: true, interior: true, kitchen: true, wardrobe: true });
+                              setPriceMode(empPerms.pricingMode || "show");
+                              setQuotePerms(empPerms.quote || { create: true, edit: true, delete: true, duplicate: true, downloadPdf: true, print: true });
+                              setProjPerms(empPerms.project || { access: true, create: true, edit: true, close: true, uploadImages: true, updateProgress: true });
+                            }}
+                            className="cursor-pointer border-slate-200 hover:shadow bg-white hover:border-slate-350 transition relative overflow-hidden"
+                          >
+                            <CardHeader className="pb-2 flex flex-row justify-between items-start">
+                              <div>
+                                <CardTitle className="text-sm font-extrabold text-slate-900">{emp.name}</CardTitle>
+                                <CardDescription className="text-[10px] font-mono mt-0.5 uppercase tracking-wide">ID: EMP-{emp.id.slice(0, 8).toUpperCase()}</CardDescription>
+                              </div>
+                              <span className="inline-block bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">
+                                {emp.position || "Staff"}
+                              </span>
+                            </CardHeader>
+                            <CardContent className="space-y-2.5 text-[11px] text-slate-600">
+                              <div className="grid gap-1">
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">Email:</span>
+                                  <span className="font-medium text-slate-800">{emp.email}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">Phone:</span>
+                                  <span className="font-medium text-slate-800">{emp.phone || "N/A"}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-400">Status:</span>
+                                  <span className="inline-block bg-emerald-50 text-emerald-800 text-[8px] font-black uppercase px-1 rounded">
+                                    Active
+                                  </span>
+                                </div>
+                                <div className="flex justify-between font-semibold">
+                                  <span className="text-slate-400">Last Login:</span>
+                                  <span className="text-slate-800">
+                                    {emp.lastLogin ? new Date(emp.lastLogin).toLocaleString() : "Never logged in"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="border-t border-slate-100 pt-2 grid gap-1.5 text-[10px]">
+                                <div>
+                                  <span className="text-slate-400 font-bold uppercase block tracking-wider mb-0.5">Calculator Access</span>
+                                  <span className="font-semibold text-slate-800">
+                                    {activeCalcs.length === 0 ? "None" : activeCalcs.join(", ")}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mt-1 bg-slate-50 p-1.5 rounded">
+                                  <div>
+                                    <span className="text-slate-400 block uppercase">Quotations</span>
+                                    <span className="text-xs font-black text-indigo-600">{quotesCount} Generated</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400 block uppercase">Projects</span>
+                                    <span className="text-xs font-black text-indigo-600">{projCount} Assigned</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* TAB 8: PROJECTS HUB */}
+          {activeTab === "projects" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Customer Projects Hub</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Manage customer job sites, assigned personnel, progress updates, and timeline loggers.</p>
+                </div>
+                {(user?.role === "company" || userPermissions.project?.create !== false) && (
+                  <Button
+                    onClick={() => {
+                      setProjName("");
+                      setCustName("");
+                      setCustPhone("");
+                      setCustEmail("");
+                      setCustAddress("");
+                      setProjExpectedDate("");
+                      setProjAssignedEmployees([]);
+                      setProjNotes("");
+                      setShowProjectModal(true);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2 px-3.5 rounded-lg flex items-center gap-1.5 shadow"
+                  >
+                    <Plus className="h-4 w-4" /> Create Project
+                  </Button>
+                )}
+              </div>
+
+              {/* List of projects */}
+              {userProjects.length === 0 ? (
+                <Card className="border-slate-200 shadow-sm bg-white p-8 text-center text-slate-400 italic text-xs">
+                  No assigned projects found.
+                </Card>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {userProjects.map((p) => {
+                    const assignedList = employees.filter(e => p.assignedEmployeeIds?.includes(e.id)).map(e => e.name);
+                    const quoteCount = quoteList.filter(q => q.projectId === p.id).length;
+
+                    return (
+                      <Card
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedProject(p);
+                          setProjProgressInput(p.progressPercentage || 0);
+                          setProjImageInput("");
+                          setTimelineTitleInput("");
+                          setTimelineNotesInput("");
+                        }}
+                        className="cursor-pointer border-slate-200 hover:shadow bg-white hover:border-slate-300 transition"
+                      >
+                        <CardHeader className="pb-2 flex flex-row justify-between items-start">
+                          <div>
+                            <CardTitle className="text-sm font-extrabold text-slate-900">{p.name}</CardTitle>
+                            <CardDescription className="text-[10px] mt-0.5 uppercase tracking-wide">ID: PROJ-{p.id.slice(0, 8).toUpperCase()}</CardDescription>
+                          </div>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                            p.status === 'active'
+                              ? "bg-emerald-50 text-emerald-800"
+                              : "bg-slate-100 text-slate-800"
+                          }`}>
+                            {p.status}
+                          </span>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-[11px] text-slate-600">
+                          <div>
+                            <span className="text-slate-400">Customer:</span>
+                            <span className="font-bold text-slate-800 block">{p.customerDetails?.name}</span>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-slate-400 font-bold uppercase">Progress</span>
+                              <span className="font-extrabold text-slate-800">{p.progressPercentage || 0}%</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${p.progressPercentage || 0}%` }} />
+                            </div>
+                          </div>
+
+                          <div className="border-t border-slate-100 pt-2 grid grid-cols-2 gap-2 text-[10px]">
+                            <div>
+                              <span className="text-slate-400 block uppercase">Quotations</span>
+                              <span className="text-xs font-black text-indigo-600">{quoteCount} linked</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block uppercase">Assigned Staff</span>
+                              <span className="text-xs font-black text-slate-700">{assignedList.length} employees</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -1699,6 +2021,553 @@ export default function Dashboard() {
         </section>
 
       </div>
+
+      {/* EMPLOYEE MANAGEMENT OVERLAY */}
+      {selectedEmployee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <Card className="w-full max-w-lg border-slate-200 shadow-2xl bg-white overflow-hidden max-h-[90vh] flex flex-col justify-between">
+            <CardHeader className="py-4 border-b border-slate-150 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-extrabold text-slate-900">Employee Workspace Controls</CardTitle>
+                <CardDescription className="text-[10px]">Configure positions, calculator lock states, pricing modes, and actions rights.</CardDescription>
+              </div>
+              <button onClick={() => setSelectedEmployee(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+
+            <form onSubmit={handleSaveEmployeePermissions} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <div className="font-extrabold text-slate-800 text-sm">{selectedEmployee.name}</div>
+                <div className="text-[10px] text-slate-500 font-mono mt-0.5 uppercase">ID: EMP-{selectedEmployee.id.slice(0,8).toUpperCase()} | {selectedEmployee.email}</div>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-slate-500">Employee Primary Role Name Template</Label>
+                <select
+                  className="h-10 w-full rounded border border-slate-300 bg-white px-3 font-semibold"
+                  value={selectedEmployeeRole}
+                  onChange={(e) => applyRoleTemplate(e.target.value)}
+                >
+                  <option value="Site Engineer">Site Engineer</option>
+                  <option value="Project Manager">Project Manager</option>
+                  <option value="Interior Designer">Interior Designer</option>
+                  <option value="Business Development Executive">Business Development Executive</option>
+                </select>
+                <span className="text-[9px] text-slate-400">Selecting a templates updates default permissions below. You can still check or uncheck individual permission options below independently.</span>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Calculators Modules Access</span>
+                <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+                  {[
+                    { key: "construction", label: "Construction Calculator" },
+                    { key: "doors", label: "Interior Calculator" },
+                    { key: "kitchen", label: "Kitchen Calculator" },
+                    { key: "wardrobe", label: "Wardrobe Calculator" }
+                  ].map((item) => (
+                    <label key={item.key} className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={calcsAccess[item.key] !== false}
+                        onChange={(e) => setCalcsAccess({ ...calcsAccess, [item.key]: e.target.checked })}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-[10px] uppercase font-bold text-slate-500">Product Pricing Access Mode</Label>
+                <select
+                  className="h-10 w-full rounded border border-slate-300 bg-white px-3"
+                  value={priceMode}
+                  onChange={(e) => setPriceMode(e.target.value)}
+                >
+                  <option value="show">Mode 1: View all product prices & estimates</option>
+                  <option value="hide">Mode 2: Hide product prices (Show Quote overall estimate totals only)</option>
+                  <option value="no-prices">Mode 3: Completely hide prices (View quotes without seeing any prices)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Quotation Actions Rights</span>
+                <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+                  {[
+                    { key: "create", label: "Create Quotations" },
+                    { key: "edit", label: "Edit/Modify Quotations" },
+                    { key: "delete", label: "Delete Quotations" },
+                    { key: "duplicate", label: "Duplicate Quotations" },
+                    { key: "downloadPdf", label: "Download Estimate PDF" },
+                    { key: "print", label: "Print Estimate (Share)" }
+                  ].map((item) => (
+                    <label key={item.key} className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={quotePerms[item.key] !== false}
+                        onChange={(e) => setQuotePerms({ ...quotePerms, [item.key]: e.target.checked })}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Projects Actions Rights</span>
+                <div className="grid grid-cols-2 gap-2 bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+                  {[
+                    { key: "access", label: "Access Assigned Projects" },
+                    { key: "create", label: "Create New Projects" },
+                    { key: "edit", label: "Edit Project Details" },
+                    { key: "close", label: "Close Projects Status" },
+                    { key: "uploadImages", label: "Upload Progress/Site Images" },
+                    { key: "updateProgress", label: "Update Progress Log Percentage" }
+                  ].map((item) => (
+                    <label key={item.key} className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={projPerms[item.key] !== false}
+                        onChange={(e) => setProjPerms({ ...projPerms, [item.key]: e.target.checked })}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </form>
+
+            <div className="border-t border-slate-150 p-4 bg-slate-50 flex gap-3">
+              <Button
+                type="button"
+                onClick={() => setSelectedEmployee(null)}
+                className="flex-1 bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEmployeePermissions}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm"
+              >
+                Save Workspace Rules
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* PROJECT CREATOR DIALOG */}
+      {showProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <Card className="w-full max-w-md border-slate-200 shadow-2xl bg-white overflow-hidden max-h-[90vh] flex flex-col justify-between">
+            <CardHeader className="py-4 border-b border-slate-150 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-extrabold text-slate-900">Create Customer Project</CardTitle>
+                <CardDescription className="text-[10px]">Define customer profile, site address, and assigned workspace crew.</CardDescription>
+              </div>
+              <button onClick={() => setShowProjectModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  await api.projects.create({
+                    name: projName,
+                    customerDetails: {
+                      name: custName,
+                      phone: custPhone,
+                      email: custEmail,
+                      address: custAddress
+                    },
+                    expectedCompletionDate: projExpectedDate,
+                    assignedEmployeeIds: projAssignedEmployees,
+                    notes: projNotes
+                  });
+                  alert("Project created successfully!");
+                  setShowProjectModal(false);
+                  void loadAllDashboardData();
+                } catch (err: any) {
+                  alert(err.message);
+                }
+              }}
+              className="flex-1 overflow-y-auto p-5 space-y-4 text-xs"
+            >
+              <div className="grid gap-3">
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Project Name</Label>
+                  <Input required className="border-slate-300 h-9 font-bold" placeholder="e.g. Oakridge Villa Interior" value={projName} onChange={(e) => setProjName(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Customer Name</Label>
+                  <Input required className="border-slate-300 h-9" placeholder="e.g. Ritesh Kumar" value={custName} onChange={(e) => setCustName(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Customer Phone</Label>
+                  <Input className="border-slate-300 h-9" placeholder="e.g. +91 99999 88888" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Customer Email</Label>
+                  <Input type="email" className="border-slate-300 h-9" placeholder="e.g. customer@example.com" value={custEmail} onChange={(e) => setCustEmail(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Site Site / Address</Label>
+                  <Input className="border-slate-300 h-9" placeholder="e.g. Sector 5, HSR Layout, Bangalore" value={custAddress} onChange={(e) => setCustAddress(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Expected Completion Date</Label>
+                  <Input type="date" className="border-slate-300 h-9" value={projExpectedDate} onChange={(e) => setProjExpectedDate(e.target.value)} />
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 block font-semibold">Assign Employees Access</Label>
+                  <div className="grid gap-1.5 max-h-28 overflow-y-auto border border-slate-200 p-2 rounded">
+                    {employees.map(emp => (
+                      <label key={emp.id} className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={projAssignedEmployees.includes(emp.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setProjAssignedEmployees([...projAssignedEmployees, emp.id]);
+                            } else {
+                              setProjAssignedEmployees(projAssignedEmployees.filter(id => id !== emp.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                        />
+                        {emp.name} ({emp.position || "Staff"})
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Project Notes / Overview</Label>
+                  <textarea className="border border-slate-300 rounded p-2" rows={3} placeholder="Provide initial requirements..." value={projNotes} onChange={(e) => setProjNotes(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-150 pt-4 flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => setShowProjectModal(false)}
+                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow"
+                >
+                  Create Project
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* PROJECT DETAILS SLIDE-OVER */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            className="w-full max-w-xl h-full bg-white shadow-2xl flex flex-col justify-between overflow-hidden"
+          >
+            <CardHeader className="py-4 border-b border-slate-150 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-extrabold text-slate-900">{selectedProject.name}</CardTitle>
+                <CardDescription className="text-[10px] font-mono mt-0.5">ID: PROJ-{selectedProject.id.toUpperCase()}</CardDescription>
+              </div>
+              <button onClick={() => setSelectedProject(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="h-6 w-6" />
+              </button>
+            </CardHeader>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-700">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid gap-2">
+                <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Client & Location Profile</h4>
+                <div className="grid gap-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-semibold">Customer Name:</span>
+                    <span className="font-bold text-slate-955">{selectedProject.customerDetails?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-semibold">Phone:</span>
+                    <span className="font-medium text-slate-955">{selectedProject.customerDetails?.phone || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-semibold">Email:</span>
+                    <span className="font-medium text-slate-955">{selectedProject.customerDetails?.email || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-semibold">Site Address:</span>
+                    <span className="font-medium text-slate-955">{selectedProject.customerDetails?.address || "N/A"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Progress Percentage</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      disabled={user?.role === "employee" && userPermissions.project?.updateProgress === false}
+                      value={projProgressInput}
+                      onChange={(e) => setProjProgressInput(parseInt(e.target.value) || 0)}
+                      className="flex-1 accent-indigo-600 disabled:opacity-50"
+                    />
+                    <span className="font-black text-slate-900 text-sm w-10 text-right">{projProgressInput}%</span>
+                    {(user?.role === "company" || userPermissions.project?.updateProgress !== false) && (
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await api.projects.update(selectedProject.id, {
+                              progressPercentage: projProgressInput,
+                              timelineEvent: {
+                                title: "Progress Update",
+                                notes: `Work progress updated to ${projProgressInput}%.`
+                              }
+                            });
+                            alert("Progress updated successfully!");
+                            setSelectedProject(null);
+                            void loadAllDashboardData();
+                          } catch (err: any) {
+                            alert(err.message);
+                          }
+                        }}
+                        className="bg-indigo-600 text-white font-bold h-7 px-2.5 text-[10px]"
+                      >
+                        Save
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Project Workspace Status</Label>
+                  <select
+                    disabled={user?.role === "employee" && userPermissions.project?.close === false}
+                    value={selectedProject.status}
+                    onChange={async (e) => {
+                      try {
+                        await api.projects.update(selectedProject.id, {
+                          status: e.target.value,
+                          timelineEvent: {
+                            title: `Status Set to ${e.target.value.toUpperCase()}`,
+                            notes: `Workspace state transitioned to ${e.target.value}.`
+                          }
+                        });
+                        alert("Status updated successfully!");
+                        setSelectedProject(null);
+                        void loadAllDashboardData();
+                      } catch (err: any) {
+                        alert(err.message);
+                      }
+                    }}
+                    className="h-9 rounded border border-slate-300 bg-white px-2 font-bold disabled:opacity-50"
+                  >
+                    <option value="active">Active Execution</option>
+                    <option value="closed">Closed / Finished</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Quotations List</h4>
+                  {(user?.role === "company" || userPermissions.quote?.create !== false) && (
+                    <Button
+                      onClick={() => {
+                        setSelectedProjectIdForQuote(selectedProject.id);
+                        setValue("customerName", selectedProject.customerDetails?.name || "");
+                        setValue("phone", selectedProject.customerDetails?.phone || "");
+                        setValue("email", selectedProject.customerDetails?.email || "");
+                        setCity(selectedProject.customerDetails?.address || "");
+                        setActiveTab("quote");
+                        setSelectedProject(null);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold h-6 px-2 rounded flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" /> Add Quotation
+                    </Button>
+                  )}
+                </div>
+                {quoteList.filter(q => q.projectId === selectedProject.id).length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px] bg-slate-50/50 p-3 rounded-lg border border-dashed border-slate-200">
+                    No quotations generated for this project yet.
+                  </p>
+                ) : (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 bg-white">
+                    {quoteList.filter(q => q.projectId === selectedProject.id).map(q => (
+                      <div key={q.id} className="p-3 hover:bg-slate-50 flex items-center justify-between gap-4">
+                        <div>
+                          <div className="font-extrabold text-slate-900 capitalize">{q.calculatorUsed || q.projectType} Estimate</div>
+                          <div className="text-[9px] text-slate-500 font-mono mt-0.5">Created: {new Date(q.createdAt).toLocaleDateString()} | Ver: {q.version || 1}</div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-black text-indigo-600 text-sm">
+                            {formatTotalAmount(q.totalAmount)}
+                          </span>
+                          
+                          {(user?.role === "company" || userPermissions.quote?.delete !== false) && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm("Delete this quotation?")) return;
+                                try {
+                                  await api.quotes.delete(q.id);
+                                  alert("Quotation deleted!");
+                                  void loadAllDashboardData();
+                                } catch (err: any) {
+                                  alert(err.message);
+                                }
+                              }}
+                              className="text-slate-400 hover:text-red-600 p-1"
+                              title="Delete Quote"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider font-semibold">Site & Progress Images</h4>
+                
+                {(selectedProject.projectImages || []).length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px]">No images uploaded yet.</p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {selectedProject.projectImages.map((img: string, idx: number) => (
+                      <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-slate-200">
+                        <img src={img} alt="progress" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(user?.role === "company" || userPermissions.project?.uploadImages !== false) && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="Paste Image URL..."
+                      className="h-8 text-xs flex-1"
+                      value={projImageInput}
+                      onChange={(e) => setProjImageInput(e.target.value)}
+                    />
+                    <Button
+                      onClick={async () => {
+                        if (!projImageInput) return;
+                        try {
+                          const updatedImgs = [...(selectedProject.projectImages || []), projImageInput];
+                          await api.projects.update(selectedProject.id, {
+                            projectImages: updatedImgs,
+                            timelineEvent: {
+                              title: "Image Uploaded",
+                              notes: "New work progress photo added to site gallery."
+                            }
+                          });
+                          alert("Photo uploaded successfully!");
+                          setProjImageInput("");
+                          setSelectedProject(null);
+                          void loadAllDashboardData();
+                        } catch (err: any) {
+                          alert(err.message);
+                        }
+                      }}
+                      className="bg-slate-900 text-white font-bold h-8 text-[11px] px-3.5"
+                    >
+                      Add Photo
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 border-t border-slate-100 pt-4">
+                <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Project Audit Trail Timeline</h4>
+                <div className="relative border-l border-slate-200 pl-4 ml-2 space-y-4">
+                  {(selectedProject.timeline || []).map((t: any, idx: number) => (
+                    <div key={idx} className="relative">
+                      <div className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-indigo-600 border border-white" />
+                      <div className="font-extrabold text-slate-900">{t.title}</div>
+                      <div className="text-[10px] text-slate-500 font-medium">{t.notes}</div>
+                      <div className="text-[8px] text-slate-400 font-mono mt-0.5">{new Date(t.date).toLocaleString()} | by {t.userName}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {(user?.role === "company" || userPermissions.project?.updateProgress !== false) && (
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2 mt-4">
+                    <h5 className="font-bold text-[10px] uppercase text-slate-500">Log Site Event</h5>
+                    <div className="grid gap-2">
+                      <Input
+                        placeholder="Event Title (e.g. Plumbing Started)"
+                        className="h-8 text-xs border-slate-300"
+                        value={timelineTitleInput}
+                        onChange={(e) => setTimelineTitleInput(e.target.value)}
+                      />
+                      <textarea
+                        placeholder="Log detailed notes..."
+                        className="border border-slate-300 rounded p-1.5 text-xs bg-white"
+                        rows={2}
+                        value={timelineNotesInput}
+                        onChange={(e) => setTimelineNotesInput(e.target.value)}
+                      />
+                      <Button
+                        onClick={async () => {
+                          if (!timelineTitleInput) return;
+                          try {
+                            await api.projects.update(selectedProject.id, {
+                              timelineEvent: {
+                                title: timelineTitleInput,
+                                notes: timelineNotesInput
+                              }
+                            });
+                            alert("Timeline event logged!");
+                            setTimelineTitleInput("");
+                            setTimelineNotesInput("");
+                            setSelectedProject(null);
+                            void loadAllDashboardData();
+                          } catch (err: any) {
+                            alert(err.message);
+                          }
+                        }}
+                        className="bg-indigo-600 text-white font-bold h-8 text-[11px] w-full"
+                      >
+                        Submit Timeline Log
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-150 p-4 bg-slate-50 flex gap-3">
+              <Button
+                onClick={() => setSelectedProject(null)}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-lg flex items-center justify-center shadow"
+              >
+                Close View panel
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1729,7 +2598,15 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 function ProductCard({ product, onAdd }: { product: any; onAdd: (product: any, quantity: number, rate: number, variant?: string) => void }) {
   const { user } = useAuth();
   const formatCurrency = (amount: number) => {
-    if (user?.role === "employee" && user.permissions?.pricing === "hide") {
+    if (!user) return "N/A";
+    let perms: any = {};
+    try {
+      perms = typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions || {});
+    } catch {
+      perms = user.permissions || {};
+    }
+    const mode = perms.pricingMode;
+    if (user?.role === "employee" && (mode === "hide" || mode === "no-prices")) {
       return "Hidden";
     }
     return new Intl.NumberFormat("en-IN", {
@@ -1737,6 +2614,21 @@ function ProductCard({ product, onAdd }: { product: any; onAdd: (product: any, q
       currency: "INR",
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const showPriceOptions = (rate: number) => {
+    if (!user) return "N/A";
+    let perms: any = {};
+    try {
+      perms = typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions || {});
+    } catch {
+      perms = user.permissions || {};
+    }
+    const mode = perms.pricingMode;
+    if (user?.role === "employee" && (mode === "hide" || mode === "no-prices")) {
+      return "Hidden";
+    }
+    return `Rs. ${rate.toLocaleString("en-IN")}`;
   };
 
   const [quantity, setQuantity] = useState(1);
@@ -1776,7 +2668,7 @@ function ProductCard({ product, onAdd }: { product: any; onAdd: (product: any, q
               >
                 {variants.map((item: any, idx: number) => (
                   <option key={item.name} value={idx}>
-                    {item.name} (Rs. {item.rate.toLocaleString("en-IN")})
+                    {item.name} ({showPriceOptions(item.rate)})
                   </option>
                 ))}
               </select>
@@ -1831,7 +2723,34 @@ function CartPanel({
 }) {
   const { user } = useAuth();
   const formatCurrency = (amount: number) => {
-    if (user?.role === "employee" && user.permissions?.pricing === "hide") {
+    if (!user) return "N/A";
+    let perms: any = {};
+    try {
+      perms = typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions || {});
+    } catch {
+      perms = user.permissions || {};
+    }
+    const mode = perms.pricingMode;
+    if (user?.role === "employee" && (mode === "hide" || mode === "no-prices")) {
+      return "Hidden";
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const formatTotalAmount = (amount: number) => {
+    if (!user) return "N/A";
+    let perms: any = {};
+    try {
+      perms = typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions || {});
+    } catch {
+      perms = user.permissions || {};
+    }
+    const mode = perms.pricingMode;
+    if (user?.role === "employee" && mode === "no-prices") {
       return "Hidden";
     }
     return new Intl.NumberFormat("en-IN", {
@@ -1901,7 +2820,7 @@ function CartPanel({
         
         <div className="border-t border-slate-200 pt-3.5 flex items-center justify-between">
           <span className="font-bold text-slate-500 uppercase text-[10px]">Estimated Subtotal</span>
-          <span className="text-lg font-black text-indigo-600">{formatCurrency(total)}</span>
+          <span className="text-lg font-black text-indigo-600">{formatTotalAmount(total)}</span>
         </div>
         
         <Button

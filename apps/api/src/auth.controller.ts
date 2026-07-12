@@ -46,9 +46,10 @@ export class AuthController {
   updateEmployeePermissions(
     @Req() req: any,
     @Param("id") employeeId: string,
-    @Body("permissions") permissions: any
+    @Body("permissions") permissions: any,
+    @Body("position") position?: string
   ) {
-    return this.authService.updateEmployeePermissions(req.user.userId, employeeId, permissions);
+    return this.authService.updateEmployeePermissions(req.user.userId, employeeId, permissions, position);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
@@ -118,6 +119,30 @@ export class AuthController {
   @Delete("admin/subscription-keys/:id")
   deleteSubscriptionKey(@Param("id") keyId: string) {
     return this.authService.deleteSubscriptionKeyForAdmin(keyId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get("projects")
+  getProjects(@Req() req: any) {
+    return this.authService.getProjectsForUser(req.user);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post("projects")
+  createProject(@Req() req: any, @Body() body: any) {
+    return this.authService.createProject(req.user, body);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post("projects/:id")
+  updateProject(@Req() req: any, @Param("id") id: string, @Body() body: any) {
+    return this.authService.updateProject(req.user, id, body);
+  }
+
+  @UseGuards(AuthGuard)
+  @Delete("projects/:id")
+  deleteProject(@Req() req: any, @Param("id") id: string) {
+    return this.authService.deleteProject(req.user, id);
   }
 
   @Post("recover-password")

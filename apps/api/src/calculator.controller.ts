@@ -222,4 +222,10 @@ export class CalculatorController {
   getQuotes(@Req() req: any) {
     return this.calculatorService.getQuotes(req.user);
   }
+
+  @UseGuards(AuthGuard, SubscriptionGuard)
+  @Delete("quotes/:id")
+  deleteQuote(@Req() req: any, @Param("id") id: string) {
+    return this.calculatorService.deleteQuote(id, req.user);
+  }
 }

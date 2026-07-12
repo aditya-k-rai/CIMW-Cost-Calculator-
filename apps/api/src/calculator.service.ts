@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { FirebaseService } from "./firebase.service.js";
 import { CacheService } from "./cache.service.js";
 import * as crypto from "crypto";
@@ -509,6 +509,12 @@ export class CalculatorService {
   }
 
   async createQuote(input: QuoteInput & {
+    id?: string;
+    projectId?: string;
+    projectName?: string;
+    calculatorUsed?: string;
+    createdByUserId?: string;
+    status?: string;
     products?: any;
     woodwork?: any;
     doors?: any;
@@ -525,7 +531,31 @@ export class CalculatorService {
       throw new BadRequestException(parsed.error.flatten());
     }
 
-    const id = crypto.randomUUID();
+    const isEdit = !!input.id;
+    const id = input.id || crypto.randomUUID();
+    const docRef = this.db.collection("quotes").doc(id);
+
+    let version = 1;
+    let versionHistory: any[] = [];
+    let createdAt = new Date().toISOString();
+
+    if (isEdit) {
+      const existing = await docRef.get();
+      if (existing.exists) {
+        const data = existing.data();
+        createdAt = data.createdAt || new Date().toISOString();
+        const currentVersion = data.version || 1;
+        version = currentVersion + 1;
+        versionHistory = data.versionHistory || [];
+        versionHistory.push({
+          version: currentVersion,
+          updatedAt: data.updatedAt || data.createdAt || new Date().toISOString(),
+          updatedBy: input.createdByUserId || "unknown",
+          totalAmount: data.totalAmount || 0
+        });
+      }
+    }
+
     const quote = {
       id,
       customerName: parsed.data.customerName,
@@ -543,10 +573,18 @@ export class CalculatorService {
       woodworkJson: JSON.stringify(input.woodwork || []),
       doorJson: JSON.stringify(input.doors || []),
       customerId: customerId || input.customerId || null,
-      createdAt: new Date().toISOString()
+      projectId: input.projectId || null,
+      projectName: input.projectName || null,
+      calculatorUsed: input.calculatorUsed || null,
+      createdByUserId: input.createdByUserId || null,
+      status: input.status || "draft",
+      version,
+      versionHistory,
+      createdAt,
+      updatedAt: new Date().toISOString()
     };
 
-    await this.db.collection("quotes").doc(id).set(quote);
+    await docRef.set(quote);
 
     this.syncToGoogleSheets(quote).catch(err => {
       console.warn("⚠️ Google Sheets background sync failed:", err.message);
@@ -555,8 +593,27 @@ export class CalculatorService {
     return {
       success: true,
       quote,
-      message: "Quote request successfully saved through NestJS."
+      message: isEdit ? "Quotation modified successfully." : "Quote request successfully saved through NestJS."
     };
+  }
+
+  async deleteQuote(id: string, user: any) {
+    const docRef = this.db.collection("quotes").doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      throw new NotFoundException("Quote not found");
+    }
+
+    if (user.role === "employee") {
+      const parsedPerms = user.permissions || {};
+      const canDelete = parsedPerms.quote?.delete ?? false;
+      if (!canDelete) {
+        throw new ForbiddenException("You do not have permission to delete quotations.");
+      }
+    }
+
+    await docRef.delete();
+    return { success: true };
   }
 
   private async syncToGoogleSheets(quote: any) {
