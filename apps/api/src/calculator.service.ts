@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "./prisma.service.js";
+import { FirebaseService } from "./firebase.service.js";
 import { CacheService } from "./cache.service.js";
+import * as crypto from "crypto";
 import {
   calculateConstruction,
   constructionConfig,
@@ -13,9 +14,13 @@ import {
 @Injectable()
 export class CalculatorService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly firebase: FirebaseService,
     private readonly cache: CacheService
   ) {}
+
+  private get db() {
+    return this.firebase.db;
+  }
 
   // ===================== CONFIG & HEALTH =====================
 
@@ -32,32 +37,29 @@ export class CalculatorService {
     const cached = await this.cache.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const brands = await this.prisma.brand.findMany({
-      orderBy: { name: "asc" }
-    });
+    const snap = await this.db.collection("brands").get();
+    const brands = snap.docs.map((d: any) => d.data());
+    brands.sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-    await this.cache.set(cacheKey, brands, 3600); // cache for 1 hour
+    await this.cache.set(cacheKey, brands, 3600);
     return brands;
   }
 
   async createBrand(body: any) {
-    const brand = await this.prisma.brand.create({
-      data: {
-        name: body.name,
-        logoUrl: body.logoUrl || ""
-      }
-    });
+    const id = crypto.randomUUID();
+    const brand = {
+      id,
+      name: body.name,
+      logoUrl: body.logoUrl || ""
+    };
+    await this.db.collection("brands").doc(id).set(brand);
 
     await this.cache.del("catalog:brands");
     return { success: true, brand };
   }
 
   async deleteBrand(id: string) {
-    try {
-      await this.prisma.brand.delete({ where: { id } });
-    } catch {
-      throw new NotFoundException("Brand not found");
-    }
+    await this.db.collection("brands").doc(id).delete();
     await this.cache.del("catalog:brands");
     return { success: true };
   }
@@ -69,36 +71,38 @@ export class CalculatorService {
     const cached = await this.cache.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const categories = await this.prisma.category.findMany();
-    const formatted = categories.map(c => ({
-      ...c,
-      subcategories: JSON.parse(c.subcategories)
-    }));
+    const snap = await this.db.collection("categories").get();
+    const categories = snap.docs.map((d: any) => {
+      const c = d.data();
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description || "",
+        subcategories: Array.isArray(c.subcategories) ? c.subcategories : JSON.parse(c.subcategories || "[]")
+      };
+    });
 
-    await this.cache.set(cacheKey, formatted, 3600);
-    return formatted;
+    await this.cache.set(cacheKey, categories, 3600);
+    return categories;
   }
 
   async createCategory(body: any) {
+    const id = crypto.randomUUID();
     const subcats = Array.isArray(body.subcategories) ? body.subcategories : [];
-    const category = await this.prisma.category.create({
-      data: {
-        name: body.name,
-        description: body.description || "",
-        subcategories: JSON.stringify(subcats)
-      }
-    });
+    const category = {
+      id,
+      name: body.name,
+      description: body.description || "",
+      subcategories: subcats
+    };
+    await this.db.collection("categories").doc(id).set(category);
 
     await this.cache.del("catalog:categories");
-    return { success: true, category: { ...category, subcategories: subcats } };
+    return { success: true, category };
   }
 
   async deleteCategory(id: string) {
-    try {
-      await this.prisma.category.delete({ where: { id } });
-    } catch {
-      throw new NotFoundException("Category not found");
-    }
+    await this.db.collection("categories").doc(id).delete();
     await this.cache.del("catalog:categories");
     return { success: true };
   }
@@ -110,82 +114,84 @@ export class CalculatorService {
     const cached = await this.cache.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const dbProducts = await this.prisma.product.findMany({
-      orderBy: { name: "asc" }
+    const snap = await this.db.collection("products").get();
+    const products = snap.docs.map((d: any) => {
+      const p = d.data();
+      return {
+        id: p.id,
+        calculator: p.calculator,
+        category: p.categoryId,
+        categoryId: p.categoryId,
+        subcategory: p.subcategory || "No Subcategory",
+        name: p.name,
+        description: p.description || "",
+        unit: p.unit,
+        rate: p.rate,
+        image: p.imageUrl || "",
+        imageUrl: p.imageUrl || "",
+        variants: Array.isArray(p.variants) ? p.variants : JSON.parse(p.variants || "[]")
+      };
     });
+    products.sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-    const products = dbProducts.map(p => ({
-      id: p.id,
-      calculator: p.calculator,
-      category: p.categoryId, // Keep compatible format
-      categoryId: p.categoryId,
-      subcategory: p.subcategory,
-      name: p.name,
-      description: p.description || "",
-      unit: p.unit,
-      rate: p.rate,
-      image: p.imageUrl || "",
-      imageUrl: p.imageUrl || "",
-      variants: JSON.parse(p.variants)
-    }));
-
-    await this.cache.set(cacheKey, products, 1800); // cache for 30 minutes
+    await this.cache.set(cacheKey, products, 1800);
     return products;
   }
 
   async createProduct(body: any) {
+    const id = body.id || `prod_${Date.now()}`;
     const variants = Array.isArray(body.variants) ? body.variants : [];
-    const product = await this.prisma.product.create({
-      data: {
-        id: body.id || `prod_${Date.now()}`,
-        calculator: body.calculator,
-        categoryId: body.categoryId,
-        subcategory: body.subcategory || "No Subcategory",
-        name: body.name,
-        description: body.description || "",
-        imageUrl: body.imageUrl || "",
-        unit: body.unit,
-        rate: parseFloat(body.rate) || 0,
-        variants: JSON.stringify(variants)
-      }
-    });
+    const product = {
+      id,
+      calculator: body.calculator,
+      categoryId: body.categoryId,
+      subcategory: body.subcategory || "No Subcategory",
+      name: body.name,
+      description: body.description || "",
+      imageUrl: body.imageUrl || "",
+      unit: body.unit,
+      rate: parseFloat(body.rate) || 0,
+      variants,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("products").doc(id).set(product);
 
     await this.cache.del("catalog:products");
-    return { success: true, product: { ...product, variants } };
+    return { success: true, product };
   }
 
   async updateProduct(id: string, body: any) {
-    const updates: any = {};
-    if (body.name !== undefined) updates.name = body.name;
-    if (body.description !== undefined) updates.description = body.description;
-    if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl;
-    if (body.categoryId !== undefined) updates.categoryId = body.categoryId;
-    if (body.subcategory !== undefined) updates.subcategory = body.subcategory;
-    if (body.unit !== undefined) updates.unit = body.unit;
-    if (body.rate !== undefined) updates.rate = parseFloat(body.rate) || 0;
-    if (body.variants !== undefined) {
-      const vArray = Array.isArray(body.variants) ? body.variants : [];
-      updates.variants = JSON.stringify(vArray);
-    }
-
-    try {
-      const product = await this.prisma.product.update({
-        where: { id },
-        data: updates
-      });
-      await this.cache.del("catalog:products");
-      return { success: true, product: { ...product, variants: JSON.parse(product.variants) } };
-    } catch {
+    const docRef = this.db.collection("products").doc(id);
+    const current = (await docRef.get()).data();
+    if (!current) {
       throw new NotFoundException("Product not found");
     }
+
+    const updated = {
+      ...current,
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
+      ...(body.categoryId !== undefined && { categoryId: body.categoryId }),
+      ...(body.subcategory !== undefined && { subcategory: body.subcategory }),
+      ...(body.unit !== undefined && { unit: body.unit }),
+      ...(body.rate !== undefined && { rate: parseFloat(body.rate) || 0 }),
+      ...(body.variants !== undefined && { variants: Array.isArray(body.variants) ? body.variants : [] }),
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(updated);
+    await this.cache.del("catalog:products");
+
+    return {
+      success: true,
+      product: updated
+    };
   }
 
   async deleteProduct(id: string) {
-    try {
-      await this.prisma.product.delete({ where: { id } });
-    } catch {
-      throw new NotFoundException("Product not found");
-    }
+    await this.db.collection("products").doc(id).delete();
     await this.cache.del("catalog:products");
     return { success: true };
   }
@@ -197,53 +203,45 @@ export class CalculatorService {
     const cached = await this.cache.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const items = await this.prisma.woodworkItem.findMany({
-      orderBy: { sortOrder: "asc" }
+    const snap = await this.db.collection("woodwork_items").get();
+    const items = snap.docs.map((d: any) => {
+      const i = d.data();
+      return {
+        id: i.id,
+        name: i.name,
+        description: i.description || "",
+        sortOrder: i.sortOrder || 0,
+        options: Array.isArray(i.options) ? i.options : JSON.parse(i.options || "[]")
+      };
     });
+    items.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    const formatted = items.map(i => ({
-      id: i.id,
-      name: i.name,
-      description: i.description || "",
-      sortOrder: i.sortOrder,
-      options: JSON.parse(i.options)
-    }));
-
-    await this.cache.set(cacheKey, formatted, 1800);
-    return formatted;
+    await this.cache.set(cacheKey, items, 1800);
+    return items;
   }
 
   async saveWoodworkItem(body: any) {
     const id = body.id || `item_${Date.now()}`;
     const options = Array.isArray(body.options) ? body.options : [];
 
-    const item = await this.prisma.woodworkItem.upsert({
-      where: { id },
-      update: {
-        name: body.name,
-        description: body.description || "",
-        sortOrder: parseInt(body.sortOrder) || 0,
-        options: JSON.stringify(options)
-      },
-      create: {
-        id,
-        name: body.name,
-        description: body.description || "",
-        sortOrder: parseInt(body.sortOrder) || 0,
-        options: JSON.stringify(options)
-      }
-    });
+    const item = {
+      id,
+      name: body.name,
+      description: body.description || "",
+      sortOrder: parseInt(body.sortOrder) || 0,
+      options,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await this.db.collection("woodwork_items").doc(id).set(item);
 
     await this.cache.del("woodwork:items");
-    return { success: true, item: { ...item, options } };
+    return { success: true, item };
   }
 
   async deleteWoodworkItem(id: string) {
-    try {
-      await this.prisma.woodworkItem.delete({ where: { id } });
-    } catch {
-      throw new NotFoundException("Woodwork item not found");
-    }
+    await this.db.collection("woodwork_items").doc(id).delete();
     await this.cache.del("woodwork:items");
     return { success: true };
   }
@@ -255,44 +253,38 @@ export class CalculatorService {
     const cached = await this.cache.get<any>(cacheKey);
     if (cached) return cached;
 
-    const [templates, dbVariants, dbFinishes, addonGroups, dbAddons, settingsDoc] = await Promise.all([
-      this.prisma.doorTemplate.findMany({ orderBy: { sortOrder: "asc" } }),
-      this.prisma.doorVariant.findMany({ orderBy: { sortOrder: "asc" } }),
-      this.prisma.doorFinish.findMany({ orderBy: { sortOrder: "asc" } }),
-      this.prisma.doorAddonGroup.findMany({ orderBy: { sortOrder: "asc" } }),
-      this.prisma.doorAddon.findMany({ orderBy: { sortOrder: "asc" } }),
-      this.prisma.doorSetting.findUnique({ where: { id: "global" } })
+    const [tSnap, vSnap, fSnap, gSnap, aSnap, sDoc] = await Promise.all([
+      this.db.collection("door_templates").get(),
+      this.db.collection("door_variants").get(),
+      this.db.collection("door_finishes").get(),
+      this.db.collection("door_addon_groups").get(),
+      this.db.collection("door_addons").get(),
+      this.db.collection("door_settings").doc("global").get()
     ]);
 
-    const variants = dbVariants.map(v => ({
-      ...v,
-      basePrice: v.basePrice,
-      isActive: v.isActive
-    }));
+    const templates = tSnap.docs.map((d: any) => d.data());
+    templates.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    const finishes = dbFinishes.map(f => ({
-      ...f,
-      priceValue: f.priceValue,
-      isActive: f.isActive
-    }));
+    const variants = vSnap.docs.map((d: any) => d.data());
+    variants.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    const addons = dbAddons.map(a => ({
-      ...a,
-      price: a.price,
-      isActive: a.isActive
-    }));
+    const finishes = fSnap.docs.map((d: any) => d.data());
+    finishes.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    const settings = settingsDoc
-      ? {
-          taxPercent: settingsDoc.taxPercent,
-          installationCharges: settingsDoc.installationCharges,
-          installationType: settingsDoc.installationType,
-          minQuantity: settingsDoc.minQuantity,
-          maxQuantity: settingsDoc.maxQuantity,
-          whatsappNumber: settingsDoc.whatsappNumber,
-          floorOptions: JSON.parse(settingsDoc.floorOptions),
-          areaOptions: JSON.parse(settingsDoc.areaOptions)
-        }
+    const addonGroups = gSnap.docs.map((d: any) => {
+      const g = d.data();
+      return {
+        ...g,
+        appliesToTemplates: Array.isArray(g.appliesToTemplates) ? g.appliesToTemplates : JSON.parse(g.appliesToTemplates || "[]")
+      };
+    });
+    addonGroups.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    const addons = aSnap.docs.map((d: any) => d.data());
+    addons.sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    const settings = sDoc.exists
+      ? sDoc.data()
       : {
           taxPercent: 18,
           installationCharges: 0,
@@ -308,10 +300,7 @@ export class CalculatorService {
       templates,
       variants,
       finishes,
-      addonGroups: addonGroups.map(g => ({
-        ...g,
-        appliesToTemplates: JSON.parse(g.appliesToTemplates)
-      })),
+      addonGroups,
       addons,
       settings
     };
@@ -323,32 +312,25 @@ export class CalculatorService {
   // Admin Door Template CRUD
   async saveDoorTemplate(body: any) {
     const id = body.id || `template_${Date.now()}`;
-    const t = await this.prisma.doorTemplate.upsert({
-      where: { id },
-      update: {
-        name: body.name,
-        description: body.description || "",
-        imageUrl: body.imageUrl || "",
-        icon: body.icon || "🚪",
-        isPublished: body.isPublished !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      },
-      create: {
-        id,
-        name: body.name,
-        description: body.description || "",
-        imageUrl: body.imageUrl || "",
-        icon: body.icon || "🚪",
-        isPublished: body.isPublished !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      }
-    });
+    const t = {
+      id,
+      name: body.name,
+      description: body.description || "",
+      imageUrl: body.imageUrl || "",
+      icon: body.icon || "🚪",
+      isPublished: body.isPublished !== false,
+      sortOrder: parseInt(body.sortOrder) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_templates").doc(id).set(t);
+
     await this.cache.del("doors:all");
     return { success: true, template: t };
   }
 
   async deleteDoorTemplate(id: string) {
-    await this.prisma.doorTemplate.delete({ where: { id } });
+    await this.db.collection("door_templates").doc(id).delete();
     await this.cache.del("doors:all");
     return { success: true };
   }
@@ -356,36 +338,27 @@ export class CalculatorService {
   // Admin Door Variant CRUD
   async saveDoorVariant(body: any) {
     const id = body.id || `variant_${Date.now()}`;
-    const v = await this.prisma.doorVariant.upsert({
-      where: { id },
-      update: {
-        templateId: body.templateId,
-        name: body.name,
-        description: body.description || "",
-        basePrice: parseFloat(body.basePrice) || 0,
-        sku: body.sku || "",
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      },
-      create: {
-        id,
-        templateId: body.templateId,
-        name: body.name,
-        description: body.description || "",
-        basePrice: parseFloat(body.basePrice) || 0,
-        sku: body.sku || "",
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      }
-    });
+    const v = {
+      id,
+      templateId: body.templateId,
+      name: body.name,
+      description: body.description || "",
+      basePrice: parseFloat(body.basePrice) || 0,
+      sku: body.sku || "",
+      imageUrl: body.imageUrl || "",
+      isActive: body.isActive !== false,
+      sortOrder: parseInt(body.sortOrder) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_variants").doc(id).set(v);
+
     await this.cache.del("doors:all");
     return { success: true, variant: v };
   }
 
   async deleteDoorVariant(id: string) {
-    await this.prisma.doorVariant.delete({ where: { id } });
+    await this.db.collection("door_variants").doc(id).delete();
     await this.cache.del("doors:all");
     return { success: true };
   }
@@ -393,36 +366,27 @@ export class CalculatorService {
   // Admin Door Finish CRUD
   async saveDoorFinish(body: any) {
     const id = body.id || `finish_${Date.now()}`;
-    const f = await this.prisma.doorFinish.upsert({
-      where: { id },
-      update: {
-        variantId: body.variantId,
-        name: body.name,
-        description: body.description || "",
-        priceType: body.priceType || "absolute",
-        priceValue: parseFloat(body.priceValue) || 0,
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      },
-      create: {
-        id,
-        variantId: body.variantId,
-        name: body.name,
-        description: body.description || "",
-        priceType: body.priceType || "absolute",
-        priceValue: parseFloat(body.priceValue) || 0,
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      }
-    });
+    const f = {
+      id,
+      variantId: body.variantId,
+      name: body.name,
+      description: body.description || "",
+      priceType: body.priceType || "absolute",
+      priceValue: parseFloat(body.priceValue) || 0,
+      imageUrl: body.imageUrl || "",
+      isActive: body.isActive !== false,
+      sortOrder: parseInt(body.sortOrder) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_finishes").doc(id).set(f);
+
     await this.cache.del("doors:all");
     return { success: true, finish: f };
   }
 
   async deleteDoorFinish(id: string) {
-    await this.prisma.doorFinish.delete({ where: { id } });
+    await this.db.collection("door_finishes").doc(id).delete();
     await this.cache.del("doors:all");
     return { success: true };
   }
@@ -431,32 +395,25 @@ export class CalculatorService {
   async saveDoorAddonGroup(body: any) {
     const id = body.id || `addongroup_${Date.now()}`;
     const applies = Array.isArray(body.appliesToTemplates) ? body.appliesToTemplates : [];
-    const g = await this.prisma.doorAddonGroup.upsert({
-      where: { id },
-      update: {
-        name: body.name,
-        description: body.description || "",
-        selectionType: body.selectionType || "multiple",
-        isRequired: body.isRequired === true,
-        appliesToTemplates: JSON.stringify(applies),
-        sortOrder: parseInt(body.sortOrder) || 0
-      },
-      create: {
-        id,
-        name: body.name,
-        description: body.description || "",
-        selectionType: body.selectionType || "multiple",
-        isRequired: body.isRequired === true,
-        appliesToTemplates: JSON.stringify(applies),
-        sortOrder: parseInt(body.sortOrder) || 0
-      }
-    });
+    const g = {
+      id,
+      name: body.name,
+      description: body.description || "",
+      selectionType: body.selectionType || "multiple",
+      isRequired: body.isRequired === true,
+      appliesToTemplates: applies,
+      sortOrder: parseInt(body.sortOrder) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_addon_groups").doc(id).set(g);
+
     await this.cache.del("doors:all");
-    return { success: true, addonGroup: { ...g, appliesToTemplates: applies } };
+    return { success: true, addonGroup: g };
   }
 
   async deleteDoorAddonGroup(id: string) {
-    await this.prisma.doorAddonGroup.delete({ where: { id } });
+    await this.db.collection("door_addon_groups").doc(id).delete();
     await this.cache.del("doors:all");
     return { success: true };
   }
@@ -464,36 +421,27 @@ export class CalculatorService {
   // Admin Door Addon CRUD
   async saveDoorAddon(body: any) {
     const id = body.id || `addon_${Date.now()}`;
-    const a = await this.prisma.doorAddon.upsert({
-      where: { id },
-      update: {
-        groupId: body.groupId,
-        name: body.name,
-        description: body.description || "",
-        price: parseFloat(body.price) || 0,
-        icon: body.icon || "🔧",
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      },
-      create: {
-        id,
-        groupId: body.groupId,
-        name: body.name,
-        description: body.description || "",
-        price: parseFloat(body.price) || 0,
-        icon: body.icon || "🔧",
-        imageUrl: body.imageUrl || "",
-        isActive: body.isActive !== false,
-        sortOrder: parseInt(body.sortOrder) || 0
-      }
-    });
+    const a = {
+      id,
+      groupId: body.groupId,
+      name: body.name,
+      description: body.description || "",
+      price: parseFloat(body.price) || 0,
+      icon: body.icon || "🔧",
+      imageUrl: body.imageUrl || "",
+      isActive: body.isActive !== false,
+      sortOrder: parseInt(body.sortOrder) || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_addons").doc(id).set(a);
+
     await this.cache.del("doors:all");
     return { success: true, addon: a };
   }
 
   async deleteDoorAddon(id: string) {
-    await this.prisma.doorAddon.delete({ where: { id } });
+    await this.db.collection("door_addons").doc(id).delete();
     await this.cache.del("doors:all");
     return { success: true };
   }
@@ -503,32 +451,22 @@ export class CalculatorService {
     const floors = Array.isArray(body.floorOptions) ? body.floorOptions : [];
     const areas = Array.isArray(body.areaOptions) ? body.areaOptions : [];
 
-    const s = await this.prisma.doorSetting.upsert({
-      where: { id: "global" },
-      update: {
-        taxPercent: parseFloat(body.taxPercent) || 18,
-        installationCharges: parseFloat(body.installationCharges) || 0,
-        installationType: body.installationType || "fixed",
-        minQuantity: parseInt(body.minQuantity) || 1,
-        maxQuantity: parseInt(body.maxQuantity) || 100,
-        whatsappNumber: body.whatsappNumber || "",
-        floorOptions: JSON.stringify(floors),
-        areaOptions: JSON.stringify(areas)
-      },
-      create: {
-        id: "global",
-        taxPercent: parseFloat(body.taxPercent) || 18,
-        installationCharges: parseFloat(body.installationCharges) || 0,
-        installationType: body.installationType || "fixed",
-        minQuantity: parseInt(body.minQuantity) || 1,
-        maxQuantity: parseInt(body.maxQuantity) || 100,
-        whatsappNumber: body.whatsappNumber || "",
-        floorOptions: JSON.stringify(floors),
-        areaOptions: JSON.stringify(areas)
-      }
-    });
+    const s = {
+      id: "global",
+      taxPercent: parseFloat(body.taxPercent) || 18,
+      installationCharges: parseFloat(body.installationCharges) || 0,
+      installationType: body.installationType || "fixed",
+      minQuantity: parseInt(body.minQuantity) || 1,
+      maxQuantity: parseInt(body.maxQuantity) || 100,
+      whatsappNumber: body.whatsappNumber || "",
+      floorOptions: floors,
+      areaOptions: areas,
+      updatedAt: new Date().toISOString()
+    };
+    await this.db.collection("door_settings").doc("global").set(s);
+
     await this.cache.del("doors:all");
-    return { success: true, settings: { ...s, floorOptions: floors, areaOptions: areas } };
+    return { success: true, settings: s };
   }
 
   // ===================== CALCULATIONS (CONSTRUCTION) =====================
@@ -547,27 +485,27 @@ export class CalculatorService {
     const { userId, role } = user;
 
     if (role === "admin") {
-      return this.prisma.quote.findMany({
-        orderBy: { createdAt: "desc" }
-      });
+      const snap = await this.db.collection("quotes").get();
+      const quotes = snap.docs.map((d: any) => d.data());
+      quotes.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+      return quotes;
     }
 
     if (role === "company") {
-      const employees = await this.prisma.user.findMany({
-        where: { companyId: userId },
-        select: { id: true }
-      });
-      const ids = [userId, ...employees.map((e) => e.id)];
-      return this.prisma.quote.findMany({
-        where: { customerId: { in: ids } },
-        orderBy: { createdAt: "desc" }
-      });
+      const empSnap = await this.db.collection("users").where("companyId", "==", userId).get();
+      const ids = [userId, ...empSnap.docs.map((e: any) => e.id)];
+
+      const snap = await this.db.collection("quotes").get();
+      const allQuotes = snap.docs.map((d: any) => d.data());
+      const filtered = allQuotes.filter((q: any) => ids.includes(q.customerId));
+      filtered.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+      return filtered;
     }
 
-    return this.prisma.quote.findMany({
-      where: { customerId: userId },
-      orderBy: { createdAt: "desc" }
-    });
+    const snap = await this.db.collection("quotes").where("customerId", "==", userId).get();
+    const quotes = snap.docs.map((d: any) => d.data());
+    quotes.sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+    return quotes;
   }
 
   async createQuote(input: QuoteInput & {
@@ -587,27 +525,29 @@ export class CalculatorService {
       throw new BadRequestException(parsed.error.flatten());
     }
 
-    const quote = await this.prisma.quote.create({
-      data: {
-        customerName: parsed.data.customerName,
-        customerPhone: parsed.data.phone,
-        customerEmail: parsed.data.email,
-        customerLocation: input.city || "",
-        projectType: parsed.data.projectType,
-        roomSize: input.roomSize ? parseFloat(input.roomSize as any) : null,
-        budgetRange: parsed.data.budgetRange,
-        startDate: input.startDate || "",
-        specialRequirements: input.notes || "",
-        additionalNotes: input.additionalNotes || "",
-        totalAmount: input.totalAmount || 0,
-        productsJson: JSON.stringify(input.products || []),
-        woodworkJson: JSON.stringify(input.woodwork || []),
-        doorJson: JSON.stringify(input.doors || []),
-        customerId: customerId || input.customerId || null
-      }
-    });
+    const id = crypto.randomUUID();
+    const quote = {
+      id,
+      customerName: parsed.data.customerName,
+      customerPhone: parsed.data.phone,
+      customerEmail: parsed.data.email,
+      customerLocation: input.city || "",
+      projectType: parsed.data.projectType,
+      roomSize: input.roomSize ? parseFloat(input.roomSize as any) : null,
+      budgetRange: parsed.data.budgetRange,
+      startDate: input.startDate || "",
+      specialRequirements: input.notes || "",
+      additionalNotes: input.additionalNotes || "",
+      totalAmount: input.totalAmount || 0,
+      productsJson: JSON.stringify(input.products || []),
+      woodworkJson: JSON.stringify(input.woodwork || []),
+      doorJson: JSON.stringify(input.doors || []),
+      customerId: customerId || input.customerId || null,
+      createdAt: new Date().toISOString()
+    };
 
-    // proxy Google Sheets Sync in background (failsafe)
+    await this.db.collection("quotes").doc(id).set(quote);
+
     this.syncToGoogleSheets(quote).catch(err => {
       console.warn("⚠️ Google Sheets background sync failed:", err.message);
     });
@@ -621,8 +561,7 @@ export class CalculatorService {
 
   private async syncToGoogleSheets(quote: any) {
     const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyEbQV76e5cy6NQIgSAaU0Ok21i_B6EQnkrPz_mQqmOOeUANFSlBpT_6HKnxqRAlDtSBw/exec";
-    
-    // Format quote details for Sheets macro
+
     const payload = {
       timestamp: quote.createdAt,
       actionType: "Backend",

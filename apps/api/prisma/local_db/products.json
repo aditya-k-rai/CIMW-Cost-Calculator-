@@ -1,0 +1,133 @@
+{
+  "mk-base-cabinet": {
+    "id": "mk-base-cabinet",
+    "calculator": "modular-kitchen",
+    "categoryId": "cat-woodwork",
+    "subcategory": "Cabinets",
+    "name": "Base Cabinets",
+    "description": "BWP plywood cabinet with laminate finish and soft-close hardware.",
+    "unit": "running ft",
+    "rate": 7800,
+    "imageUrl": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=900&q=80",
+    "variants": [
+      {
+        "name": "Laminate",
+        "rate": 7800
+      },
+      {
+        "name": "Acrylic",
+        "rate": 10800
+      },
+      {
+        "name": "PU Finish",
+        "rate": 13200
+      }
+    ]
+  },
+  "mk-wall-cabinet": {
+    "id": "mk-wall-cabinet",
+    "calculator": "modular-kitchen",
+    "categoryId": "cat-woodwork",
+    "subcategory": "Cabinets",
+    "name": "Wall Cabinets",
+    "description": "Overhead modular storage with adjustable shelves.",
+    "unit": "running ft",
+    "rate": 6200,
+    "imageUrl": "https://images.unsplash.com/photo-1600489000022-c2086d79f9d4?auto=format&fit=crop&w=900&q=80",
+    "variants": []
+  },
+  "mk-tandem": {
+    "id": "mk-tandem",
+    "calculator": "modular-kitchen",
+    "categoryId": "cat-accessories",
+    "subcategory": "Drawers",
+    "name": "Tandem Drawer Set",
+    "description": "Premium pull-out drawer system for pots and pantry storage.",
+    "unit": "set",
+    "rate": 18500,
+    "imageUrl": "https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=900&q=80",
+    "variants": []
+  },
+  "int-flush-door": {
+    "id": "int-flush-door",
+    "calculator": "interior",
+    "categoryId": "cat-doors",
+    "subcategory": "Flush Doors",
+    "name": "Flush Door With Laminate",
+    "description": "Ready-to-install interior door with laminate finish and frame.",
+    "unit": "door",
+    "rate": 14500,
+    "imageUrl": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=80",
+    "variants": [
+      {
+        "name": "Wooden Ply",
+        "rate": 14500
+      },
+      {
+        "name": "HDHMR",
+        "rate": 18200
+      }
+    ]
+  },
+  "int-tv-unit": {
+    "id": "int-tv-unit",
+    "calculator": "interior",
+    "categoryId": "cat-living",
+    "subcategory": "TV Units",
+    "name": "TV Unit",
+    "description": "Wall-mounted media unit with storage and cable management.",
+    "unit": "sq ft",
+    "rate": 1850,
+    "imageUrl": "https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=900&q=80",
+    "variants": []
+  },
+  "int-wall-panel": {
+    "id": "int-wall-panel",
+    "calculator": "interior",
+    "categoryId": "cat-wall-treatment",
+    "subcategory": "Panels",
+    "name": "Decorative Wall Panel",
+    "description": "Feature wall paneling with laminate or veneer option.",
+    "unit": "sq ft",
+    "rate": 950,
+    "imageUrl": "https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=900&q=80",
+    "variants": []
+  },
+  "wd-sliding": {
+    "id": "wd-sliding",
+    "calculator": "wardrobe",
+    "categoryId": "cat-wardrobe",
+    "subcategory": "Sliding",
+    "name": "Sliding Wardrobe",
+    "description": "Space-saving sliding wardrobe with shelves and hanging storage.",
+    "unit": "sq ft",
+    "rate": 1750,
+    "imageUrl": "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=900&q=80",
+    "variants": []
+  },
+  "wd-hinged": {
+    "id": "wd-hinged",
+    "calculator": "wardrobe",
+    "categoryId": "cat-wardrobe",
+    "subcategory": "Hinged",
+    "name": "Hinged Wardrobe",
+    "description": "Classic hinged shutter wardrobe with modular internals.",
+    "unit": "sq ft",
+    "rate": 1450,
+    "imageUrl": "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=900&q=80",
+    "variants": [
+      {
+        "name": "Laminate",
+        "rate": 1450
+      },
+      {
+        "name": "Membrane",
+        "rate": 1650
+      },
+      {
+        "name": "Acrylic",
+        "rate": 2200
+      }
+    ]
+  }
+}

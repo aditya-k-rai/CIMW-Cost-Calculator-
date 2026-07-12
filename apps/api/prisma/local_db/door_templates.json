@@ -1,0 +1,9 @@
+{
+  "door_panel": {
+    "id": "door_panel",
+    "name": "Panel Door",
+    "description": "Classic panel door with various material options",
+    "icon": "🚪",
+    "sortOrder": 1
+  }
+}

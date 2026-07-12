@@ -1,0 +1,42 @@
+{
+  "addon_lock": {
+    "id": "addon_lock",
+    "groupId": "group_door_hardware",
+    "name": "Premium Lock",
+    "description": "High security mortise lock",
+    "icon": "🔐",
+    "price": 2500,
+    "sortOrder": 1,
+    "isActive": true
+  },
+  "addon_stopper": {
+    "id": "addon_stopper",
+    "groupId": "group_door_hardware",
+    "name": "Door Stopper",
+    "description": "Wall-mounted door stopper",
+    "icon": "🛑",
+    "price": 350,
+    "sortOrder": 2,
+    "isActive": true
+  },
+  "addon_hinges": {
+    "id": "addon_hinges",
+    "groupId": "group_door_hardware",
+    "name": "Premium Hinges",
+    "description": "Set of 4 ball bearing hinges",
+    "icon": "🔩",
+    "price": 800,
+    "sortOrder": 3,
+    "isActive": true
+  },
+  "addon_handle": {
+    "id": "addon_handle",
+    "groupId": "group_door_hardware",
+    "name": "Designer Handle",
+    "description": "Stainless steel designer handle",
+    "icon": "🚪",
+    "price": 1200,
+    "sortOrder": 4,
+    "isActive": true
+  }
+}

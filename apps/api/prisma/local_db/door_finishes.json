@@ -1,0 +1,42 @@
+{
+  "finish_laminated": {
+    "id": "finish_laminated",
+    "variantId": "variant_wooden_ply",
+    "name": "Laminated",
+    "description": "Durable laminated finish with scratch resistance",
+    "priceType": "absolute",
+    "priceValue": 1500,
+    "sortOrder": 1,
+    "isActive": true
+  },
+  "finish_glossy": {
+    "id": "finish_glossy",
+    "variantId": "variant_wooden_ply",
+    "name": "Glossy",
+    "description": "High gloss finish for premium look",
+    "priceType": "absolute",
+    "priceValue": 2500,
+    "sortOrder": 2,
+    "isActive": true
+  },
+  "finish_hdhmr_laminated": {
+    "id": "finish_hdhmr_laminated",
+    "variantId": "variant_hdhmr",
+    "name": "Laminated",
+    "description": "Premium laminated finish on HDHMR",
+    "priceType": "absolute",
+    "priceValue": 2000,
+    "sortOrder": 1,
+    "isActive": true
+  },
+  "finish_hdhmr_membrane": {
+    "id": "finish_hdhmr_membrane",
+    "variantId": "variant_hdhmr",
+    "name": "Membrane",
+    "description": "PVC membrane finish for seamless look",
+    "priceType": "absolute",
+    "priceValue": 3500,
+    "sortOrder": 2,
+    "isActive": true
+  }
+}

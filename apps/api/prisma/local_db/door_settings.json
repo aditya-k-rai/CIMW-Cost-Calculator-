@@ -1,0 +1,22 @@
+{
+  "global": {
+    "id": "global",
+    "taxPercent": 18,
+    "installationCharges": 1500,
+    "installationType": "per_unit",
+    "minQuantity": 1,
+    "maxQuantity": 50,
+    "whatsappNumber": "919582581238",
+    "floorOptions": [
+      "Ground Floor",
+      "First Floor",
+      "Second Floor",
+      "Underground Floor"
+    ],
+    "areaOptions": [
+      "Bathroom",
+      "Kitchen",
+      "Hall"
+    ]
+  }
+}

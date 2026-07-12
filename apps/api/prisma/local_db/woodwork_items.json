@@ -1,0 +1,54 @@
+{
+  "woodwork_base_cabinets": {
+    "id": "woodwork_base_cabinets",
+    "name": "Base Cabinets (Material)",
+    "description": "Select core structure material for kitchen base units.",
+    "options": [
+      {
+        "id": "opt_base_bwr",
+        "name": "BWR Plywood",
+        "description": "Boiling Water Resistant ply",
+        "price": 1400
+      },
+      {
+        "id": "opt_base_bwp",
+        "name": "BWP Plywood",
+        "description": "Boiling Water Proof ply",
+        "price": 1600
+      },
+      {
+        "id": "opt_base_hdhmr",
+        "name": "HDHMR Board",
+        "description": "High Density moisture resistant",
+        "price": 1100
+      }
+    ],
+    "sortOrder": 1
+  },
+  "woodwork_shutters": {
+    "id": "woodwork_shutters",
+    "name": "Shutters (Finish)",
+    "description": "Select finish type for modular shutter doors.",
+    "options": [
+      {
+        "id": "opt_shutter_laminate",
+        "name": "Laminate Finish",
+        "description": "Matte/Glossy durable laminate",
+        "price": 1200
+      },
+      {
+        "id": "opt_shutter_acrylic",
+        "name": "Acrylic Finish",
+        "description": "Ultra high gloss reflective",
+        "price": 1800
+      },
+      {
+        "id": "opt_shutter_pu",
+        "name": "PU paint",
+        "description": "Seamless premium paint finish",
+        "price": 2400
+      }
+    ],
+    "sortOrder": 2
+  }
+}

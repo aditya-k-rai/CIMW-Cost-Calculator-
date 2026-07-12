@@ -1,0 +1,22 @@
+{
+  "brand-hafele": {
+    "id": "brand-hafele",
+    "name": "Hafele",
+    "logoUrl": ""
+  },
+  "brand-hettich": {
+    "id": "brand-hettich",
+    "name": "Hettich",
+    "logoUrl": ""
+  },
+  "brand-blum": {
+    "id": "brand-blum",
+    "name": "Blum",
+    "logoUrl": ""
+  },
+  "brand-sleek": {
+    "id": "brand-sleek",
+    "name": "Sleek",
+    "logoUrl": ""
+  }
+}

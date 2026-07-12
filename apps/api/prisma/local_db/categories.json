@@ -1,0 +1,58 @@
+{
+  "cat-woodwork": {
+    "id": "cat-woodwork",
+    "name": "Woodwork",
+    "description": "Bespoke woodwork parts",
+    "subcategories": [
+      "Cabinets",
+      "Shutters",
+      "Shelves"
+    ]
+  },
+  "cat-accessories": {
+    "id": "cat-accessories",
+    "name": "Accessories",
+    "description": "Kitchen and wardrobe pull-outs",
+    "subcategories": [
+      "Drawers",
+      "Organizers",
+      "Trays"
+    ]
+  },
+  "cat-doors": {
+    "id": "cat-doors",
+    "name": "Doors",
+    "description": "Custom entrance & room doors",
+    "subcategories": [
+      "Flush Doors",
+      "Panel Doors"
+    ]
+  },
+  "cat-living": {
+    "id": "cat-living",
+    "name": "Living",
+    "description": "Media units and panels",
+    "subcategories": [
+      "TV Units",
+      "Bookshelves"
+    ]
+  },
+  "cat-wall-treatment": {
+    "id": "cat-wall-treatment",
+    "name": "Wall Treatment",
+    "description": "Feature panels and coatings",
+    "subcategories": [
+      "Panels",
+      "Wallpaper"
+    ]
+  },
+  "cat-wardrobe": {
+    "id": "cat-wardrobe",
+    "name": "Wardrobe",
+    "description": "Complete wardrobe structures",
+    "subcategories": [
+      "Hinged",
+      "Sliding"
+    ]
+  }
+}

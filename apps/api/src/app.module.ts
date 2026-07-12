@@ -6,7 +6,7 @@ import { CalculatorController } from "./calculator.controller.js";
 import { CalculatorService } from "./calculator.service.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
-import { PrismaService } from "./prisma.service.js";
+import { FirebaseService } from "./firebase.service.js";
 import { CacheService } from "./cache.service.js";
 import { RolesGuard } from "./roles.guard.js";
 
@@ -23,7 +23,7 @@ import { RolesGuard } from "./roles.guard.js";
   providers: [
     CalculatorService,
     AuthService,
-    PrismaService,
+    FirebaseService,
     CacheService,
     {
       provide: APP_GUARD,

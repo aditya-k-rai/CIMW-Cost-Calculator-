@@ -1,0 +1,22 @@
+{
+  "variant_wooden_ply": {
+    "id": "variant_wooden_ply",
+    "templateId": "door_panel",
+    "name": "Wooden Ply",
+    "description": "Premium wooden plywood material",
+    "basePrice": 8500,
+    "sku": "WP-001",
+    "sortOrder": 1,
+    "isActive": true
+  },
+  "variant_hdhmr": {
+    "id": "variant_hdhmr",
+    "templateId": "door_panel",
+    "name": "HDHMR",
+    "description": "High Density High Moisture Resistance board",
+    "basePrice": 12000,
+    "sku": "HDHMR-001",
+    "sortOrder": 2,
+    "isActive": true
+  }
+}

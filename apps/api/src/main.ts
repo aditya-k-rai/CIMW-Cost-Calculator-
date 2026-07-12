@@ -16,7 +16,19 @@ async function bootstrap() {
   app.use(compression());
 
   app.enableCors({
-    origin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
+    origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean) => void) => {
+      if (
+        !origin ||
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://127.0.0.1:") ||
+        origin.includes("vercel.app") ||
+        (process.env.WEB_ORIGIN && origin === process.env.WEB_ORIGIN)
+      ) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true
   });
 

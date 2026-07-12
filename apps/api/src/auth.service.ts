@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
-import { PrismaService } from "./prisma.service.js";
+import { FirebaseService } from "./firebase.service.js";
 import { signJwt } from "./jwt.util.js";
 import * as crypto from "crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
@@ -39,7 +39,11 @@ function verifyPassword(password: string, storedHash: string): boolean {
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly firebase: FirebaseService) {}
+
+  private get db() {
+    return this.firebase.db;
+  }
 
   private mapUserResponse(user: any) {
     let parsedPerms = {};
@@ -53,21 +57,32 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      phone: user.phone,
+      phone: user.phone || null,
       role: user.role,
-      pincode: user.pincode,
-      district: user.district,
-      state: user.state,
-      budgetRange: user.budgetRange,
-      purpose: user.purpose,
-      gstNumber: user.gstNumber,
-      businessMail: user.businessMail,
-      keyId: user.keyId,
-      position: user.position,
-      companyCode: user.companyCode,
-      companyId: user.companyId,
+      pincode: user.pincode || null,
+      district: user.district || null,
+      state: user.state || null,
+      budgetRange: user.budgetRange || null,
+      purpose: user.purpose || null,
+      gstNumber: user.gstNumber || null,
+      businessMail: user.businessMail || null,
+      keyId: user.keyId || null,
+      position: user.position || null,
+      companyCode: user.companyCode || null,
+      companyId: user.companyId || null,
       permissions: parsedPerms
     };
+  }
+
+  private async findUserByEmail(email: string): Promise<any | null> {
+    const snapshot = await this.db.collection("users").where("email", "==", email).get();
+    if (snapshot.docs.length === 0) return null;
+    return snapshot.docs[0].data();
+  }
+
+  private async findUserById(id: string): Promise<any | null> {
+    const doc = await this.db.collection("users").doc(id).get();
+    return doc.exists ? doc.data() : null;
   }
 
   async register(body: any) {
@@ -94,10 +109,7 @@ export class AuthService {
       throw new BadRequestException("Required fields: email, password, name, and role are missing");
     }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { email }
-    });
-
+    const existing = await this.findUserByEmail(email);
     if (existing) {
       throw new BadRequestException("This email is already registered");
     }
@@ -124,9 +136,10 @@ export class AuthService {
       if (!companyCode || !position) {
         throw new BadRequestException("Company Code and Position are required for Employee signup");
       }
-      const parentCompany = await this.prisma.user.findFirst({
-        where: { role: "company", keyId: companyCode }
-      });
+      // Single where query to avoid composite indexes
+      const snapshot = await this.db.collection("users").where("keyId", "==", companyCode).get();
+      const parentCompany = snapshot.docs.map((d: any) => d.data()).find((u: any) => u.role === "company");
+
       if (!parentCompany) {
         throw new BadRequestException(`No active Company found with company code: ${companyCode}`);
       }
@@ -149,35 +162,39 @@ export class AuthService {
     }
 
     const hashedPassword = hashPassword(password);
+    const userId = crypto.randomUUID();
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        phone,
-        role,
-        pincode,
-        district,
-        state,
-        budgetRange,
-        purpose,
-        gstNumber,
-        businessMail,
-        keyId,
-        position,
-        companyCode,
-        companyId,
-        permissions
-      }
-    });
+    const userRecord = {
+      id: userId,
+      email,
+      password: hashedPassword,
+      name,
+      phone: phone || null,
+      role,
+      pincode: pincode || null,
+      district: district || null,
+      state: state || null,
+      budgetRange: budgetRange || null,
+      purpose: purpose || null,
+      gstNumber: gstNumber || null,
+      businessMail: businessMail || null,
+      keyId: keyId || null,
+      position: position || null,
+      companyCode: companyCode || null,
+      companyId: companyId || null,
+      permissions,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    const token = signJwt({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET);
+    await this.db.collection("users").doc(userId).set(userRecord);
+
+    const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
 
     return {
       success: true,
       token,
-      user: this.mapUserResponse(user)
+      user: this.mapUserResponse(userRecord)
     };
   }
 
@@ -188,10 +205,7 @@ export class AuthService {
       throw new BadRequestException("Email and password are required");
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { email }
-    });
-
+    const user = await this.findUserByEmail(email);
     if (!user || !user.password || !verifyPassword(password, user.password)) {
       throw new UnauthorizedException("Incorrect email or password");
     }
@@ -232,23 +246,20 @@ export class AuthService {
 
     const { email, sub: firebaseUid, name } = decodedToken;
 
-    // Check if user exists by email or Firebase UID
-    let user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { firebaseUid }
-        ]
+    // Check if user exists by email first, then by firebaseUid
+    let user = await this.findUserByEmail(email);
+    if (!user) {
+      const snapshot = await this.db.collection("users").where("firebaseUid", "==", firebaseUid).get();
+      if (snapshot.docs.length > 0) {
+        user = snapshot.docs[0].data();
       }
-    });
+    }
 
     if (user) {
       // Sync Google UID if missing
       if (!user.firebaseUid) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: { firebaseUid }
-        });
+        user.firebaseUid = firebaseUid;
+        await this.db.collection("users").doc(user.id).update({ firebaseUid });
       }
 
       const token = signJwt({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET);
@@ -324,9 +335,10 @@ export class AuthService {
       if (!companyCode || !position) {
         throw new BadRequestException("Company Code and Position are required for Employee signup");
       }
-      const parentCompany = await this.prisma.user.findFirst({
-        where: { role: "company", keyId: companyCode }
-      });
+      // Single query to avoid composite index requirement
+      const snapshot = await this.db.collection("users").where("keyId", "==", companyCode).get();
+      const parentCompany = snapshot.docs.map((d: any) => d.data()).find((u: any) => u.role === "company");
+
       if (!parentCompany) {
         throw new BadRequestException(`No active Company found with company code: ${companyCode}`);
       }
@@ -347,47 +359,47 @@ export class AuthService {
       });
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        firebaseUid,
-        name: displayName,
-        phone,
-        role,
-        pincode,
-        district,
-        state,
-        budgetRange,
-        purpose,
-        gstNumber,
-        businessMail,
-        keyId,
-        position,
-        companyCode,
-        companyId,
-        permissions
-      }
-    });
+    const userId = crypto.randomUUID();
+    const userRecord = {
+      id: userId,
+      email,
+      firebaseUid,
+      name: displayName,
+      phone: phone || null,
+      role,
+      pincode: pincode || null,
+      district: district || null,
+      state: state || null,
+      budgetRange: budgetRange || null,
+      purpose: purpose || null,
+      gstNumber: gstNumber || null,
+      businessMail: businessMail || null,
+      keyId: keyId || null,
+      position: position || null,
+      companyCode: companyCode || null,
+      companyId: companyId || null,
+      permissions,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
 
-    const token = signJwt({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET);
+    await this.db.collection("users").doc(userId).set(userRecord);
+
+    const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
 
     return {
       success: true,
       registered: true,
       token,
-      user: this.mapUserResponse(user)
+      user: this.mapUserResponse(userRecord)
     };
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
-
+    const user = await this.findUserById(userId);
     if (!user) {
       throw new BadRequestException("User profile not found");
     }
-
     return this.mapUserResponse(user);
   }
 
@@ -406,26 +418,33 @@ export class AuthService {
       position
     } = body;
 
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(name && { name }),
-        ...(phone && { phone }),
-        ...(pincode && { pincode }),
-        ...(district && { district }),
-        ...(state && { state }),
-        ...(budgetRange && { budgetRange }),
-        ...(purpose && { purpose }),
-        ...(gstNumber && { gstNumber }),
-        ...(businessMail && { businessMail }),
-        ...(keyId && { keyId }),
-        ...(position && { position })
-      }
-    });
+    const docRef = this.db.collection("users").doc(userId);
+    const current = (await docRef.get()).data();
+    if (!current) {
+      throw new BadRequestException("User profile not found");
+    }
+
+    const updated = {
+      ...current,
+      ...(name && { name }),
+      ...(phone && { phone }),
+      ...(pincode && { pincode }),
+      ...(district && { district }),
+      ...(state && { state }),
+      ...(budgetRange && { budgetRange }),
+      ...(purpose && { purpose }),
+      ...(gstNumber && { gstNumber }),
+      ...(businessMail && { businessMail }),
+      ...(keyId && { keyId }),
+      ...(position && { position }),
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(updated);
 
     return {
       success: true,
-      user: this.mapUserResponse(user)
+      user: this.mapUserResponse(updated)
     };
   }
 
@@ -436,21 +455,15 @@ export class AuthService {
       throw new BadRequestException("Email and new password are required");
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { email }
-    });
-
+    const user = await this.findUserByEmail(email);
     if (!user) {
       throw new BadRequestException("User not found");
     }
 
     const hashedPassword = hashPassword(newPassword);
-
-    await this.prisma.user.update({
-      where: { email },
-      data: {
-        password: hashedPassword
-      }
+    await this.db.collection("users").doc(user.id).update({
+      password: hashedPassword,
+      updatedAt: new Date().toISOString()
     });
 
     return {
@@ -460,48 +473,56 @@ export class AuthService {
   }
 
   async getEmployeesForCompany(companyId: string) {
-    const employees = await this.prisma.user.findMany({
-      where: { companyId }
-    });
-    return employees.map((emp) => this.mapUserResponse(emp));
+    const snapshot = await this.db.collection("users").where("companyId", "==", companyId).get();
+    const employees = snapshot.docs.map((d: any) => d.data());
+    return employees.map((emp: any) => this.mapUserResponse(emp));
   }
 
   async updateEmployeePermissions(companyId: string, employeeId: string, permissions: any) {
-    const employee = await this.prisma.user.findUnique({
-      where: { id: employeeId }
-    });
+    const employee = await this.findUserById(employeeId);
     if (!employee || employee.companyId !== companyId) {
       throw new BadRequestException("Employee not found in your company");
     }
 
-    const updated = await this.prisma.user.update({
-      where: { id: employeeId },
-      data: {
-        permissions: JSON.stringify(permissions)
-      }
+    const updatedPermissions = typeof permissions === "string" ? permissions : JSON.stringify(permissions);
+
+    await this.db.collection("users").doc(employeeId).update({
+      permissions: updatedPermissions,
+      updatedAt: new Date().toISOString()
     });
+
+    employee.permissions = updatedPermissions;
 
     return {
       success: true,
-      user: this.mapUserResponse(updated)
+      user: this.mapUserResponse(employee)
     };
   }
 
   async getAllUsersForAdmin() {
-    const users = await this.prisma.user.findMany();
-    return users.map((user) => this.mapUserResponse(user));
+    const snapshot = await this.db.collection("users").get();
+    const users = snapshot.docs.map((d: any) => d.data());
+    return users.map((user: any) => this.mapUserResponse(user));
   }
 
   async adminUpdateUserPermissions(userId: string, permissions: any) {
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        permissions: JSON.stringify(permissions)
-      }
+    const user = await this.findUserById(userId);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+
+    const updatedPermissions = typeof permissions === "string" ? permissions : JSON.stringify(permissions);
+
+    await this.db.collection("users").doc(userId).update({
+      permissions: updatedPermissions,
+      updatedAt: new Date().toISOString()
     });
+
+    user.permissions = updatedPermissions;
+
     return {
       success: true,
-      user: this.mapUserResponse(updated)
+      user: this.mapUserResponse(user)
     };
   }
 }

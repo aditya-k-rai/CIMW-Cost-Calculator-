@@ -1,0 +1,12 @@
+{
+  "group_door_hardware": {
+    "id": "group_door_hardware",
+    "name": "Door Hardware",
+    "description": "Essential door hardware accessories",
+    "selectionType": "multiple",
+    "sortOrder": 1,
+    "appliesToTemplates": [
+      "door_panel"
+    ]
+  }
+}
