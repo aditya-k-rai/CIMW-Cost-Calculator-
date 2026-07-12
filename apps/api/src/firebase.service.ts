@@ -166,6 +166,7 @@ class MockFirestore {
 @Injectable()
 export class FirebaseService implements OnModuleInit {
   public db: any;
+  public app: any = null;
   private isFallback = false;
 
   onModuleInit() {
@@ -175,15 +176,14 @@ export class FirebaseService implements OnModuleInit {
       try {
         const credentialJson = JSON.parse(serviceAccountEnv);
         const apps = getApps();
-        let app;
         if (apps.length === 0) {
-          app = initializeApp({
+          this.app = initializeApp({
             credential: cert(credentialJson)
           });
         } else {
-          app = apps[0];
+          this.app = apps[0];
         }
-        this.db = getFirestore(app);
+        this.db = getFirestore(this.app);
         console.log("🔥 Firebase Admin SDK initialized successfully with service account.");
         return;
       } catch (err: any) {

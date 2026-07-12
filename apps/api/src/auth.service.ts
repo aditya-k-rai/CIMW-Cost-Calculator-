@@ -7,20 +7,6 @@ import { getAuth } from "firebase-admin/auth";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-calculator-key";
 
-// Initialize Firebase Admin SDK if not already done
-let firebaseAdminApp: any = null;
-try {
-  const apps = getApps();
-  if (apps.length === 0) {
-    firebaseAdminApp = initializeApp({
-      projectId: "cimw-cost-calculator"
-    });
-  } else {
-    firebaseAdminApp = apps[0];
-  }
-} catch (e) {
-  console.log("Firebase Admin initialization skipped/failed. Running with JWT fallback decoders.");
-}
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -227,8 +213,8 @@ export class AuthService {
 
     let decodedToken: any = null;
     try {
-      if (firebaseAdminApp) {
-        decodedToken = await getAuth().verifyIdToken(idToken);
+      if (this.firebase.app) {
+        decodedToken = await getAuth(this.firebase.app).verifyIdToken(idToken);
       } else {
         // Safe JWT fallback parser
         const parts = idToken.split(".");
