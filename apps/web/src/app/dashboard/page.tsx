@@ -1327,38 +1327,66 @@ export default function Dashboard() {
             })}
           </nav>
 
-          {/* Recent Activity Panel */}
-          <Card className="border-slate-200 shadow-sm overflow-hidden bg-white/70 backdrop-blur-md">
-            <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3 text-white">
-              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-indigo-400" /> Recent Activity
-              </h3>
-            </div>
-            <CardContent className="p-3.5 space-y-4 max-h-[300px] overflow-y-auto pr-1">
-              {recentActivities.length === 0 ? (
-                <div className="text-center text-slate-400 italic text-[10px] py-4">No recent activity logged</div>
-              ) : (
-                <div className="relative border-l border-slate-200 pl-3 ml-1.5 space-y-3.5">
-                  {recentActivities.map((act) => (
-                    <div key={act.id} className="relative text-[10px]">
-                      <span className={`absolute -left-[17px] top-0.5 h-2 w-2 rounded-full border border-white ${
-                        act.type === "login" ? "bg-amber-500" :
-                        act.type === "project" ? "bg-indigo-500" :
-                        act.type === "quote" ? "bg-emerald-500" : "bg-sky-500"
-                      }`} />
-                      
-                      <div className="font-extrabold text-slate-900 leading-tight">{act.title}</div>
-                      <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">{act.subtitle}</div>
-                      {act.meta && <div className="text-[8px] font-mono text-slate-400 mt-0.5">{act.meta}</div>}
-                      <div className="text-[8px] text-indigo-500 mt-1 font-semibold">
-                        {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  ))}
+          {/* Conditionally render sidebar widgets depending on user roles */}
+          {user?.role === "admin" ? (
+            activeTab !== "construction" && (
+              <Card className="border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-white">
+                  <h3 className="text-sm font-bold">Calculation Cart</h3>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <CardContent className="p-4 space-y-3.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Modular Kitchen</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.kitchen)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Wardrobe Items</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.wardrobe)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Interior Doors</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.doors)}</span>
+                  </div>
+                  <div className="border-t border-slate-100 pt-3 flex justify-between items-end">
+                    <span className="text-xs font-bold text-slate-600 uppercase">Grand Total</span>
+                    <span className="text-base font-bold text-indigo-600">{formatCurrency(groupedCartTotal.grandTotal)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          ) : (
+            <Card className="border-slate-200 shadow-sm overflow-hidden bg-white/70 backdrop-blur-md">
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3 text-white">
+                <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-indigo-400" /> Recent Activity
+                </h3>
+              </div>
+              <CardContent className="p-3.5 space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                {recentActivities.length === 0 ? (
+                  <div className="text-center text-slate-400 italic text-[10px] py-4">No recent activity logged</div>
+                ) : (
+                  <div className="relative border-l border-slate-200 pl-3 ml-1.5 space-y-3.5">
+                    {recentActivities.map((act) => (
+                      <div key={act.id} className="relative text-[10px]">
+                        <span className={`absolute -left-[17px] top-0.5 h-2 w-2 rounded-full border border-white ${
+                          act.type === "login" ? "bg-amber-500" :
+                          act.type === "project" ? "bg-indigo-500" :
+                          act.type === "quote" ? "bg-emerald-500" : "bg-sky-500"
+                        }`} />
+                        
+                        <div className="font-extrabold text-slate-900 leading-tight">{act.title}</div>
+                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">{act.subtitle}</div>
+                        {act.meta && <div className="text-[8px] font-mono text-slate-400 mt-0.5">{act.meta}</div>}
+                        <div className="text-[8px] text-indigo-500 mt-1 font-semibold">
+                          {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </aside>
 
         {/* Tab Workspaces */}
@@ -2077,547 +2105,581 @@ export default function Dashboard() {
 
             </motion.div>
           )}
-
           {/* TAB 1: OVERVIEW DASHBOARD */}
           {activeTab === "overview" && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              
-              {/* Dashboard Summary Panel (Real-Time Cards) */}
-              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-                {[
-                  { title: "Total Quotations Generated", count: statsSummary.totalQuotes.count, today: statsSummary.totalQuotes.today, updated: statsSummary.totalQuotes.updated, icon: FileText, color: "from-blue-500/10 to-indigo-500/5 border-blue-500/20 text-blue-600" },
-                  { title: "Total Active Projects", count: statsSummary.activeProjects.count, today: statsSummary.activeProjects.today, updated: statsSummary.activeProjects.updated, icon: Folder, color: "from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-600" },
-                  { title: "Total Employees", count: statsSummary.employees.count, today: statsSummary.employees.today, updated: statsSummary.employees.updated, icon: User, color: "from-pink-500/10 to-rose-500/5 border-pink-500/20 text-pink-600" },
-                  { title: "Total Customers", count: statsSummary.customers.count, today: statsSummary.customers.today, updated: statsSummary.customers.updated, icon: User, color: "from-sky-500/10 to-teal-500/5 border-sky-500/20 text-sky-600" },
-                  { title: "Total Revenue Generated", count: statsSummary.revenue.count, today: statsSummary.revenue.today, updated: statsSummary.revenue.updated, icon: Building2, color: "from-emerald-500/10 to-green-500/5 border-emerald-500/20 text-emerald-600", isPrice: true },
-                  { title: "Pending Quotations", count: statsSummary.pendingQuotes.count, today: statsSummary.pendingQuotes.today, updated: statsSummary.pendingQuotes.updated, icon: Clock, color: "from-amber-500/10 to-yellow-500/5 border-amber-500/20 text-amber-600" },
-                  { title: "Completed Projects", count: statsSummary.completedProjects.count, today: statsSummary.completedProjects.today, updated: statsSummary.completedProjects.updated, icon: Folder, color: "from-teal-500/10 to-emerald-500/5 border-teal-500/20 text-teal-600" },
-                  { title: "Ongoing Projects", count: statsSummary.ongoingProjects.count, today: statsSummary.ongoingProjects.today, updated: statsSummary.ongoingProjects.updated, icon: Clock, color: "from-orange-500/10 to-amber-500/5 border-orange-500/20 text-orange-600" },
-                ].map((stat, idx) => (
-                  <Card key={idx} className={`border bg-gradient-to-br ${stat.color} shadow-sm overflow-hidden relative group hover:shadow-md transition duration-300`}>
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider group-hover:text-slate-700 transition">{stat.title}</span>
-                        <stat.icon className="h-5 w-5 opacity-40 group-hover:opacity-85 transition duration-300" />
+              {user?.role === "admin" ? (
+                /* Admin Overview Dashboard: Cost Estimator Calculators only */
+                <div>
+                  <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4">Cost Estimator Calculators</h2>
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    {[
+                      { id: "construction", label: "Construction Calculator", icon: Building2 },
+                      { id: "interior", label: "Interior Calculator", icon: DoorOpen },
+                      { id: "modular-kitchen", label: "Kitchen Calculator", icon: ChefHat },
+                      { id: "wardrobe", label: "Wardrobe Calculator", icon: Layers3 }
+                    ].map((calc) => (
+                      <Card
+                        key={calc.id}
+                        onClick={() => setActiveTab(calc.id as WorkspaceTab)}
+                        className="cursor-pointer border-slate-200 hover:shadow-md transition bg-white relative overflow-hidden"
+                      >
+                        <CardContent className="p-5 flex items-center gap-4">
+                          <div className="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+                            <calc.icon className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{calc.label}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              Open Calculator Workspace
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Company & Employee Overview: The complete Dashboard Analytics & Activity Panel */
+                <>
+                  {/* Dashboard Summary Panel (Real-Time Cards) */}
+                  <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { title: "Total Quotations Generated", count: statsSummary.totalQuotes.count, today: statsSummary.totalQuotes.today, updated: statsSummary.totalQuotes.updated, icon: FileText, color: "from-blue-500/10 to-indigo-500/5 border-blue-500/20 text-blue-600" },
+                      { title: "Total Active Projects", count: statsSummary.activeProjects.count, today: statsSummary.activeProjects.today, updated: statsSummary.activeProjects.updated, icon: Folder, color: "from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-600" },
+                      { title: "Total Employees", count: statsSummary.employees.count, today: statsSummary.employees.today, updated: statsSummary.employees.updated, icon: User, color: "from-pink-500/10 to-rose-500/5 border-pink-500/20 text-pink-600" },
+                      { title: "Total Customers", count: statsSummary.customers.count, today: statsSummary.customers.today, updated: statsSummary.customers.updated, icon: User, color: "from-sky-500/10 to-teal-500/5 border-sky-500/20 text-sky-600" },
+                      { title: "Total Revenue Generated", count: statsSummary.revenue.count, today: statsSummary.revenue.today, updated: statsSummary.revenue.updated, icon: Building2, color: "from-emerald-500/10 to-green-500/5 border-emerald-500/20 text-emerald-600", isPrice: true },
+                      { title: "Pending Quotations", count: statsSummary.pendingQuotes.count, today: statsSummary.pendingQuotes.today, updated: statsSummary.pendingQuotes.updated, icon: Clock, color: "from-amber-500/10 to-yellow-500/5 border-amber-500/20 text-amber-600" },
+                      { title: "Completed Projects", count: statsSummary.completedProjects.count, today: statsSummary.completedProjects.today, updated: statsSummary.completedProjects.updated, icon: Folder, color: "from-teal-500/10 to-emerald-500/5 border-teal-500/20 text-teal-600" },
+                      { title: "Ongoing Projects", count: statsSummary.ongoingProjects.count, today: statsSummary.ongoingProjects.today, updated: statsSummary.ongoingProjects.updated, icon: Clock, color: "from-orange-500/10 to-amber-500/5 border-orange-500/20 text-orange-600" },
+                    ].map((stat, idx) => (
+                      <Card key={idx} className={`border bg-gradient-to-br ${stat.color} shadow-sm overflow-hidden relative group hover:shadow-md transition duration-300`}>
+                        <CardContent className="p-4 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider group-hover:text-slate-700 transition">{stat.title}</span>
+                            <stat.icon className="h-5 w-5 opacity-40 group-hover:opacity-85 transition duration-300" />
+                          </div>
+                          
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-xl sm:text-2xl font-black text-slate-900">
+                              {stat.isPrice ? formatCurrency(stat.count) : stat.count}
+                            </span>
+                            {stat.today > 0 && (
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-100/70 px-1 rounded">
+                                +{stat.isPrice ? formatCurrency(stat.today) : stat.today} today
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[8px] text-slate-400 font-semibold flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Updated: {stat.updated}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* SECTION 1: QUOTATION ACTIVITY */}
+                  <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+                    <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div>
+                        <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                          <FileText className="h-4 w-4 text-indigo-500" /> Section 1: Quotation Activity
+                        </CardTitle>
+                        <CardDescription className="text-[10px] text-slate-400">All cost quotations generated across company employees.</CardDescription>
                       </div>
                       
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xl sm:text-2xl font-black text-slate-900">
-                          {stat.isPrice ? formatCurrency(stat.count) : stat.count}
-                        </span>
-                        {stat.today > 0 && (
-                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-100/70 px-1 rounded">
-                            +{stat.isPrice ? formatCurrency(stat.today) : stat.today} today
-                          </span>
-                        )}
+                      {/* Search and Sort controls */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Search Customer, Quote ID, Project, Staff..."
+                          value={quoteSearch}
+                          onChange={(e) => { setQuoteSearch(e.target.value); setQuotePage(1); }}
+                          className="h-8 rounded border border-slate-355 bg-white px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        />
+                        <select
+                          value={quoteSort}
+                          onChange={(e) => { setQuoteSort(e.target.value); setQuotePage(1); }}
+                          className="h-8 rounded border border-slate-355 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                          <option value="highest">Highest Amount</option>
+                          <option value="lowest">Lowest Amount</option>
+                          <option value="recently-updated">Recently Updated</option>
+                          <option value="pending">Show Pending Status</option>
+                          <option value="approved">Show Approved Status</option>
+                          <option value="rejected">Show Rejected Status</option>
+                          <option value="draft">Show Draft Status</option>
+                        </select>
+                      </div>
+                    </CardHeader>
+
+                    {/* Advanced Filters */}
+                    <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Calculator</span>
+                        <select value={quoteFilterCalc} onChange={(e) => { setQuoteFilterCalc(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Calculators</option>
+                          <option value="construction">Construction</option>
+                          <option value="modular-kitchen">Modular Kitchen</option>
+                          <option value="interior">Interior Doors</option>
+                          <option value="wardrobe">Wardrobe Items</option>
+                        </select>
+                      </div>
+                      
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Employee</span>
+                        <select value={quoteFilterEmployee} onChange={(e) => { setQuoteFilterEmployee(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Employees</option>
+                          {employees.map(e => (
+                            <option key={e.id} value={e.id}>{e.name}</option>
+                          ))}
+                        </select>
                       </div>
 
-                      <div className="text-[8px] text-slate-400 font-semibold flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> Updated: {stat.updated}
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
+                        <select value={quoteFilterDate} onChange={(e) => { setQuoteFilterDate(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Time</option>
+                          <option value="today">Today</option>
+                          <option value="week">Last 7 Days</option>
+                          <option value="month">Last 30 Days</option>
+                        </select>
                       </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Project</span>
+                        <select value={quoteFilterProject} onChange={(e) => { setQuoteFilterProject(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Projects</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
+                        <select value={quoteFilterStatus} onChange={(e) => { setQuoteFilterStatus(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Statuses</option>
+                          <option value="draft">Draft</option>
+                          <option value="sent">Sent</option>
+                          <option value="pending">Pending</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <CardContent className="p-0 overflow-x-auto">
+                      {paginatedQuotes.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 italic text-xs">No matching quotations found.</div>
+                      ) : (
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-505 font-bold uppercase tracking-wider">
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Quote No.</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer Name</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Calculator</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Generated By</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Role</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Amount</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Date & Time</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {paginatedQuotes.map((q) => {
+                              const creator = employees.find(e => e.id === q.createdByUserId);
+                              const creatorName = creator ? creator.name : "Administrator";
+                              const creatorRole = creator ? (creator.position || "Staff") : "Super Admin";
+                              
+                              return (
+                                <tr key={q.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="px-4 py-3.5 font-mono font-bold text-slate-900">Q-{q.id.slice(0, 5).toUpperCase()}</td>
+                                  <td className="px-4 py-3.5 font-bold text-slate-800">{q.customerName}</td>
+                                  <td className="px-4 py-3.5">
+                                    {q.projectId ? (
+                                      <div className="space-y-1">
+                                        <span className="font-semibold text-indigo-700 block">{q.projectName || "Linked Project"}</span>
+                                        <Button
+                                          onClick={() => {
+                                            const linkedProj = projects.find(proj => proj.id === q.projectId);
+                                            if (linkedProj) {
+                                              setSelectedProject(linkedProj);
+                                            } else {
+                                              alert("Project details could not be found.");
+                                            }
+                                          }}
+                                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[9px] font-black h-5 px-1.5 rounded flex items-center gap-1 border border-indigo-100"
+                                        >
+                                          Open Project
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-400 italic">No Project Assigned</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <span className="inline-block bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold capitalize">
+                                      {(q.calculatorUsed || q.projectType || "calculator").replace("-", " ")}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 font-medium text-slate-700">{creatorName}</td>
+                                  <td className="px-4 py-3.5">
+                                    <span className="inline-block bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
+                                      {creatorRole}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-right font-extrabold text-slate-900">{formatCurrency(q.totalAmount || 0)}</td>
+                                  <td className="px-4 py-3.5">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                      q.status === "approved" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                                      q.status === "rejected" ? "bg-red-50 text-red-800 border border-red-200" :
+                                      q.status === "pending" || q.status === "sent" ? "bg-amber-50 text-amber-800 border border-amber-200" :
+                                      "bg-slate-100 text-slate-705 border border-slate-200"
+                                    }`}>
+                                      {q.status || "draft"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-slate-505 whitespace-nowrap">
+                                    <div>{new Date(q.createdAt).toLocaleDateString()}</div>
+                                    <div className="text-[9px] text-slate-400 mt-0.5">{new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Button onClick={() => setSelectedQuoteForDetails(q)} size="sm" variant="ghost" title="View details" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
+                                        <FileText className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button onClick={() => duplicateQuote(q)} size="sm" variant="ghost" title="Duplicate Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button onClick={() => editQuote(q)} size="sm" variant="ghost" title="Edit Parameters" className="h-7 w-7 p-0 text-slate-600 hover:text-indigo-600">
+                                        <Edit className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button onClick={() => handleDeleteQuote(q.id)} size="sm" variant="ghost" title="Delete Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-red-600">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
                     </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* SECTION 1: QUOTATION ACTIVITY */}
-              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-                <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                  <div>
-                    <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-indigo-500" /> Section 1: Quotation Activity
-                    </CardTitle>
-                    <CardDescription className="text-[10px] text-slate-400">All cost quotations generated across company employees.</CardDescription>
-                  </div>
-                  
-                  {/* Search and Sort controls */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Search Customer, Quote ID, Project, Staff..."
-                      value={quoteSearch}
-                      onChange={(e) => { setQuoteSearch(e.target.value); setQuotePage(1); }}
-                      className="h-8 rounded border border-slate-350 bg-white px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                    />
-                    <select
-                      value={quoteSort}
-                      onChange={(e) => { setQuoteSort(e.target.value); setQuotePage(1); }}
-                      className="h-8 rounded border border-slate-350 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
-                    >
-                      <option value="newest">Newest First</option>
-                      <option value="oldest">Oldest First</option>
-                      <option value="highest">Highest Amount</option>
-                      <option value="lowest">Lowest Amount</option>
-                      <option value="recently-updated">Recently Updated</option>
-                      <option value="pending">Show Pending Status</option>
-                      <option value="approved">Show Approved Status</option>
-                      <option value="rejected">Show Rejected Status</option>
-                      <option value="draft">Show Draft Status</option>
-                    </select>
-                  </div>
-                </CardHeader>
-
-                {/* Advanced Filters */}
-                <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Calculator</span>
-                    <select value={quoteFilterCalc} onChange={(e) => { setQuoteFilterCalc(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Calculators</option>
-                      <option value="construction">Construction</option>
-                      <option value="modular-kitchen">Modular Kitchen</option>
-                      <option value="interior">Interior Doors</option>
-                      <option value="wardrobe">Wardrobe Items</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Employee</span>
-                    <select value={quoteFilterEmployee} onChange={(e) => { setQuoteFilterEmployee(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Employees</option>
-                      {employees.map(e => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
-                    <select value={quoteFilterDate} onChange={(e) => { setQuoteFilterDate(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Time</option>
-                      <option value="today">Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">Last 30 Days</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Project</span>
-                    <select value={quoteFilterProject} onChange={(e) => { setQuoteFilterProject(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Projects</option>
-                      {projects.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
-                    <select value={quoteFilterStatus} onChange={(e) => { setQuoteFilterStatus(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Statuses</option>
-                      <option value="draft">Draft</option>
-                      <option value="sent">Sent</option>
-                      <option value="pending">Pending</option>
-                      <option value="approved">Approved</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
-                  </div>
-                </div>
-
-                <CardContent className="p-0 overflow-x-auto">
-                  {paginatedQuotes.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 italic text-xs">No matching quotations found.</div>
-                  ) : (
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Quote No.</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer Name</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Calculator</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Generated By</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Role</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Amount</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Date & Time</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {paginatedQuotes.map((q) => {
-                          const creator = employees.find(e => e.id === q.createdByUserId);
-                          const creatorName = creator ? creator.name : "Administrator";
-                          const creatorRole = creator ? (creator.position || "Staff") : "Super Admin";
-                          
-                          return (
-                            <tr key={q.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3.5 font-mono font-bold text-slate-900">Q-{q.id.slice(0, 5).toUpperCase()}</td>
-                              <td className="px-4 py-3.5 font-bold text-slate-800">{q.customerName}</td>
-                              <td className="px-4 py-3.5">
-                                {q.projectId ? (
-                                  <div className="space-y-1">
-                                    <span className="font-semibold text-indigo-700 block">{q.projectName || "Linked Project"}</span>
-                                    <Button
-                                      onClick={() => {
-                                        const linkedProj = projects.find(proj => proj.id === q.projectId);
-                                        if (linkedProj) {
-                                          setSelectedProject(linkedProj);
-                                        } else {
-                                          alert("Project details could not be found.");
-                                        }
-                                      }}
-                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[9px] font-black h-5 px-1.5 rounded flex items-center gap-1 border border-indigo-100"
-                                    >
-                                      Open Project
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 italic">No Project Assigned</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="inline-block bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold capitalize">
-                                  {(q.calculatorUsed || q.projectType || "calculator").replace("-", " ")}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 font-medium text-slate-700">{creatorName}</td>
-                              <td className="px-4 py-3.5">
-                                <span className="inline-block bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
-                                  {creatorRole}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 text-right font-extrabold text-slate-900">{formatCurrency(q.totalAmount || 0)}</td>
-                              <td className="px-4 py-3.5">
-                                <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                                  q.status === "approved" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
-                                  q.status === "rejected" ? "bg-red-50 text-red-800 border border-red-200" :
-                                  q.status === "pending" || q.status === "sent" ? "bg-amber-50 text-amber-800 border border-amber-200" :
-                                  "bg-slate-100 text-slate-700 border border-slate-200"
-                                }`}>
-                                  {q.status || "draft"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
-                                <div>{new Date(q.createdAt).toLocaleDateString()}</div>
-                                <div className="text-[9px] text-slate-400 mt-0.5">{new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <div className="flex items-center justify-center gap-1">
-                                  <Button onClick={() => setSelectedQuoteForDetails(q)} size="sm" variant="ghost" title="View details" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
-                                    <FileText className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button onClick={() => duplicateQuote(q)} size="sm" variant="ghost" title="Duplicate Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
-                                    <Copy className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button onClick={() => editQuote(q)} size="sm" variant="ghost" title="Edit Parameters" className="h-7 w-7 p-0 text-slate-600 hover:text-indigo-600">
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button onClick={() => handleDeleteQuote(q.id)} size="sm" variant="ghost" title="Delete Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-red-600">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </CardContent>
-                
-                {/* Pagination Controls */}
-                {totalQuotePages > 1 && (
-                  <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-500 bg-slate-50/50">
-                    <span>Showing Page <b>{quotePage}</b> of <b>{totalQuotePages}</b></span>
-                    <div className="flex gap-2">
-                      <Button disabled={quotePage <= 1} onClick={() => setQuotePage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
-                      <Button disabled={quotePage >= totalQuotePages} onClick={() => setQuotePage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-
-              {/* SECTION 2: PROJECT ACTIVITY */}
-              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-                <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                  <div>
-                    <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
-                      <Folder className="h-4 w-4 text-indigo-500" /> Section 2: Project Activity
-                    </CardTitle>
-                    <CardDescription className="text-[10px] text-slate-400">Review status, budget assignments, and execution timelines.</CardDescription>
-                  </div>
-                  
-                  {/* Sort options */}
-                  <div>
-                    <select
-                      value={projSort}
-                      onChange={(e) => { setProjSort(e.target.value); setProjPage(1); }}
-                      className="h-8 rounded border border-slate-350 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
-                    >
-                      <option value="newest">Newest First</option>
-                      <option value="oldest">Oldest First</option>
-                      <option value="highest">Highest Budget</option>
-                      <option value="lowest">Lowest Budget</option>
-                      <option value="recently-updated">Recently Updated</option>
-                      <option value="completed">Completed Projects</option>
-                      <option value="ongoing">Ongoing Projects</option>
-                    </select>
-                  </div>
-                </CardHeader>
-
-                {/* Filters */}
-                <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Budget Range</span>
-                    <select value={projFilterBudget} onChange={(e) => { setProjFilterBudget(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Budgets</option>
-                      <option value="0-5L">&lt; 5 Lakhs</option>
-                      <option value="5L-15L">5L - 15 Lakhs</option>
-                      <option value="15L+">&gt; 15 Lakhs</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
-                    <select value={projFilterStatus} onChange={(e) => { setProjFilterStatus(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Statuses</option>
-                      <option value="active">Ongoing (Active)</option>
-                      <option value="closed">Completed (Closed)</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Assigned Staff</span>
-                    <select value={projFilterEmployee} onChange={(e) => { setProjFilterEmployee(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Employees</option>
-                      {employees.map(e => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Customer Name</span>
-                    <input
-                      type="text"
-                      placeholder="Filter customer..."
-                      value={projFilterCustomer}
-                      onChange={(e) => { setProjFilterCustomer(e.target.value); setProjPage(1); }}
-                      className="h-7 rounded border border-slate-300 bg-white px-2 text-[11px] focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
-                    <select value={projFilterDate} onChange={(e) => { setProjFilterDate(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
-                      <option value="">All Time</option>
-                      <option value="today">Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">Last 30 Days</option>
-                    </select>
-                  </div>
-                </div>
-
-                <CardContent className="p-0 overflow-x-auto">
-                  {paginatedProjects.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 italic text-xs">No matching projects found.</div>
-                  ) : (
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project ID</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Budget</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Assigned Staff</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Quotations</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Created Date</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Progress</th>
-                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {paginatedProjects.map((p) => {
-                          const quoteCount = quoteList.filter(q => q.projectId === p.id).length;
-                          const assignedList = employees.filter(e => p.assignedEmployeeIds?.includes(e.id)).map(e => e.name);
-                          
-                          return (
-                            <tr key={p.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-4 py-3.5 font-bold text-slate-900">{p.name}</td>
-                              <td className="px-4 py-3.5 font-mono text-slate-600">PROJ-{p.id.slice(0, 8).toUpperCase()}</td>
-                              <td className="px-4 py-3.5 text-slate-800 font-medium">{p.customerDetails?.name || "N/A"}</td>
-                              <td className="px-4 py-3.5 text-right font-extrabold text-slate-900">{formatCurrency(p.budget || 0)}</td>
-                              <td className="px-4 py-3.5">
-                                <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                                  p.status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
-                                  "bg-slate-100 text-slate-800 border border-slate-200"
-                                }`}>
-                                  {p.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 text-slate-700">
-                                {assignedList.length === 0 ? (
-                                  <span className="text-slate-400 italic">None</span>
-                                ) : (
-                                  <span className="font-medium">{assignedList.join(", ")}</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3.5 text-center font-bold text-indigo-600">{quoteCount} quotes</td>
-                              <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
-                                <div>{new Date(p.createdAt).toLocaleDateString()}</div>
-                                <div className="text-[9px] text-slate-400 mt-0.5">{new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <div className="flex items-center gap-2 min-w-[80px]">
-                                  <div className="h-2 bg-slate-100 rounded-full flex-1 overflow-hidden border border-slate-200">
-                                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${p.progressPercentage || 0}%` }} />
-                                  </div>
-                                  <span className="font-extrabold text-[10px] text-slate-800">{p.progressPercentage || 0}%</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5 text-center">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <Button
-                                    onClick={() => {
-                                      setSelectedProject(p);
-                                      setProjProgressInput(p.progressPercentage || 0);
-                                      setProjImageInput("");
-                                      setTimelineTitleInput("");
-                                      setTimelineNotesInput("");
-                                    }}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold h-6.5 px-2 rounded.flex items-center gap-1 shadow-sm"
-                                  >
-                                    Open Project
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </CardContent>
-
-                {/* Pagination Controls */}
-                {totalProjPages > 1 && (
-                  <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-500 bg-slate-50/50">
-                    <span>Showing Page <b>{projPage}</b> of <b>{totalProjPages}</b></span>
-                    <div className="flex gap-2">
-                      <Button disabled={projPage <= 1} onClick={() => setProjPage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
-                      <Button disabled={projPage >= totalProjPages} onClick={() => setProjPage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-
-              {/* Employee Management Section below */}
-              {user?.role === "company" && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center border-t border-slate-200 pt-6">
-                    <div>
-                      <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Employee Workspace Directory</h2>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Define employee settings, calculators permission matrix, and view login histories.</p>
-                    </div>
                     
-                    {/* Share Invitation Code */}
-                    <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-700">
-                      <span>Invitation Code: {user.keyId}</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(user.keyId || "");
-                          alert("Company Code copied to clipboard!");
-                        }}
-                        className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase ml-1.5"
-                      >
-                        Copy
-                      </button>
+                    {/* Pagination Controls */}
+                    {totalQuotePages > 1 && (
+                      <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-550 bg-slate-50/50">
+                        <span>Showing Page <b>{quotePage}</b> of <b>{totalQuotePages}</b></span>
+                        <div className="flex gap-2">
+                          <Button disabled={quotePage <= 1} onClick={() => setQuotePage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
+                          <Button disabled={quotePage >= totalQuotePages} onClick={() => setQuotePage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+
+                  {/* SECTION 2: PROJECT ACTIVITY */}
+                  <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+                    <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div>
+                        <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                          <Folder className="h-4 w-4 text-indigo-500" /> Section 2: Project Activity
+                        </CardTitle>
+                        <CardDescription className="text-[10px] text-slate-400">Review status, budget assignments, and execution timelines.</CardDescription>
+                      </div>
+                      
+                      {/* Sort options */}
+                      <div>
+                        <select
+                          value={projSort}
+                          onChange={(e) => { setProjSort(e.target.value); setProjPage(1); }}
+                          className="h-8 rounded border border-slate-355 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                          <option value="highest">Highest Budget</option>
+                          <option value="lowest">Lowest Budget</option>
+                          <option value="recently-updated">Recently Updated</option>
+                          <option value="completed">Completed Projects</option>
+                          <option value="ongoing">Ongoing Projects</option>
+                        </select>
+                      </div>
+                    </CardHeader>
+
+                    {/* Filters */}
+                    <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Budget Range</span>
+                        <select value={projFilterBudget} onChange={(e) => { setProjFilterBudget(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Budgets</option>
+                          <option value="0-5L">&lt; 5 Lakhs</option>
+                          <option value="5L-15L">5L - 15 Lakhs</option>
+                          <option value="15L+">&gt; 15 Lakhs</option>
+                        </select>
+                      </div>
+                      
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
+                        <select value={projFilterStatus} onChange={(e) => { setProjFilterStatus(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Statuses</option>
+                          <option value="active">Ongoing (Active)</option>
+                          <option value="closed">Completed (Closed)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Assigned Staff</span>
+                        <select value={projFilterEmployee} onChange={(e) => { setProjFilterEmployee(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Employees</option>
+                          {employees.map(e => (
+                            <option key={e.id} value={e.id}>{e.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Customer Name</span>
+                        <input
+                          type="text"
+                          placeholder="Filter customer..."
+                          value={projFilterCustomer}
+                          onChange={(e) => { setProjFilterCustomer(e.target.value); setProjPage(1); }}
+                          className="h-7 rounded border border-slate-300 bg-white px-2 text-[11px] focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
+                        <select value={projFilterDate} onChange={(e) => { setProjFilterDate(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                          <option value="">All Time</option>
+                          <option value="today">Today</option>
+                          <option value="week">Last 7 Days</option>
+                          <option value="month">Last 30 Days</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
 
-                  {employees.length === 0 ? (
-                    <Card className="border-slate-200 shadow-sm bg-white p-8 text-center text-slate-400 italic text-xs">
-                      No linked employees registered yet. Invite them using your company key ID!
-                    </Card>
-                  ) : (
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      {employees.map((emp) => {
-                        let empPerms: any = {};
-                        try {
-                          empPerms = typeof emp.permissions === "string" ? JSON.parse(emp.permissions) : (emp.permissions || {});
-                        } catch {
-                          empPerms = {};
-                        }
-                        const activeCalcs: string[] = [];
-                        if (empPerms.calculators?.construction !== false) activeCalcs.push("Construction");
-                        if (empPerms.calculators?.doors !== false) activeCalcs.push("Interior");
-                        if (empPerms.calculators?.kitchen !== false) activeCalcs.push("Kitchen");
-                        if (empPerms.calculators?.wardrobe !== false) activeCalcs.push("Wardrobe");
+                    <CardContent className="p-0 overflow-x-auto">
+                      {paginatedProjects.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 italic text-xs">No matching projects found.</div>
+                      ) : (
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-550 font-bold uppercase tracking-wider">
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Project ID</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Budget</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Assigned Staff</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Quotations</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Created Date</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50">Progress</th>
+                              <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {paginatedProjects.map((p) => {
+                              const quoteCount = quoteList.filter(q => q.projectId === p.id).length;
+                              const assignedList = employees.filter(e => p.assignedEmployeeIds?.includes(e.id)).map(e => e.name);
+                              
+                              return (
+                                <tr key={p.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="px-4 py-3.5 font-bold text-slate-900">{p.name}</td>
+                                  <td className="px-4 py-3.5 font-mono text-slate-600">PROJ-{p.id.slice(0, 8).toUpperCase()}</td>
+                                  <td className="px-4 py-3.5 text-slate-800 font-medium">{p.customerDetails?.name || "N/A"}</td>
+                                  <td className="px-4 py-3.5 text-right font-extrabold text-slate-905">{formatCurrency(p.budget || 0)}</td>
+                                  <td className="px-4 py-3.5">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                      p.status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                                      "bg-slate-100 text-slate-800 border border-slate-200"
+                                    }`}>
+                                      {p.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-slate-700">
+                                    {assignedList.length === 0 ? (
+                                      <span className="text-slate-400 italic">None</span>
+                                    ) : (
+                                      <span className="font-medium">{assignedList.join(", ")}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center font-bold text-indigo-600">{quoteCount} quotes</td>
+                                  <td className="px-4 py-3.5 text-slate-505 whitespace-nowrap">
+                                    <div>{new Date(p.createdAt).toLocaleDateString()}</div>
+                                    <div className="text-[9px] text-slate-400 mt-0.5">{new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <div className="flex items-center gap-2 min-w-[80px]">
+                                      <div className="h-2 bg-slate-100 rounded-full flex-1 overflow-hidden border border-slate-200">
+                                        <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${p.progressPercentage || 0}%` }} />
+                                      </div>
+                                      <span className="font-extrabold text-[10px] text-slate-800">{p.progressPercentage || 0}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <Button
+                                        onClick={() => {
+                                          setSelectedProject(p);
+                                          setProjProgressInput(p.progressPercentage || 0);
+                                          setProjImageInput("");
+                                          setTimelineTitleInput("");
+                                          setTimelineNotesInput("");
+                                        }}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold h-6.5 px-2 rounded flex items-center gap-1 shadow-sm"
+                                      >
+                                        Open Project
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </CardContent>
 
-                        const quotesCount = quoteList.filter(q => q.createdByUserId === emp.id).length;
-                        const projCount = projects.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(emp.id)).length;
+                    {/* Pagination Controls */}
+                    {totalProjPages > 1 && (
+                      <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-505 bg-slate-50/50">
+                        <span>Showing Page <b>{projPage}</b> of <b>{totalProjPages}</b></span>
+                        <div className="flex gap-2">
+                          <Button disabled={projPage <= 1} onClick={() => setProjPage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
+                          <Button disabled={projPage >= totalProjPages} onClick={() => setProjPage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
 
-                        return (
-                          <Card
-                            key={emp.id}
+                  {/* Employee Management Section below */}
+                  {user?.role === "company" && (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-t border-slate-200 pt-6">
+                        <div>
+                          <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider">Employee Workspace Directory</h2>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Define employee settings, calculators permission matrix, and view login histories.</p>
+                        </div>
+                        
+                        {/* Share Invitation Code */}
+                        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-705">
+                          <span>Invitation Code: {user.keyId}</span>
+                          <button
                             onClick={() => {
-                              setSelectedEmployee(emp);
-                              setSelectedEmployeeRole(emp.position || "Site Engineer");
-                              setCalcsAccess(empPerms.calculators || { construction: true, interior: true, kitchen: true, wardrobe: true });
-                              setPriceMode(empPerms.pricingMode || "show");
-                              setQuotePerms(empPerms.quote || { create: true, edit: true, delete: true, duplicate: true, downloadPdf: true, print: true });
-                              setProjPerms(empPerms.project || { access: true, create: true, edit: true, close: true, uploadImages: true, updateProgress: true });
+                              navigator.clipboard.writeText(user.keyId || "");
+                              alert("Company Code copied to clipboard!");
                             }}
-                            className="cursor-pointer border-slate-200 hover:shadow bg-white hover:border-slate-350 transition relative overflow-hidden"
+                            className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase ml-1.5"
                           >
-                            <CardHeader className="pb-2 flex flex-row justify-between items-start">
-                              <div>
-                                <CardTitle className="text-sm font-extrabold text-slate-900">{emp.name}</CardTitle>
-                                <CardDescription className="text-[10px] font-mono mt-0.5 uppercase tracking-wide">ID: EMP-{emp.id.slice(0, 8).toUpperCase()}</CardDescription>
-                              </div>
-                              <span className="inline-block bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">
-                                {emp.position || "Staff"}
-                              </span>
-                            </CardHeader>
-                            <CardContent className="space-y-2.5 text-[11px] text-slate-600">
-                              <div className="grid gap-1">
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Email:</span>
-                                  <span className="font-medium text-slate-800">{emp.email}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Phone:</span>
-                                  <span className="font-medium text-slate-800">{emp.phone || "N/A"}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-400">Status:</span>
-                                  <span className="inline-block bg-emerald-50 text-emerald-800 text-[8px] font-black uppercase px-1 rounded">
-                                    Active
-                                  </span>
-                                </div>
-                                <div className="flex justify-between font-semibold">
-                                  <span className="text-slate-400">Last Login:</span>
-                                  <span className="text-slate-800">
-                                    {emp.lastLogin ? new Date(emp.lastLogin).toLocaleString() : "Never logged in"}
-                                  </span>
-                                </div>
-                              </div>
+                            Copy
+                          </button>
+                        </div>
+                      </div>
 
-                              <div className="border-t border-slate-100 pt-2 grid gap-1.5 text-[10px]">
-                                <div>
-                                  <span className="text-slate-400 font-bold uppercase block tracking-wider mb-0.5">Calculator Access</span>
-                                  <span className="font-semibold text-slate-800">
-                                    {activeCalcs.length === 0 ? "None" : activeCalcs.join(", ")}
+                      {employees.length === 0 ? (
+                        <Card className="border-slate-200 shadow-sm bg-white p-8 text-center text-slate-400 italic text-xs">
+                          No linked employees registered yet. Invite them using your company key ID!
+                        </Card>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          {employees.map((emp) => {
+                            let empPerms: any = {};
+                            try {
+                              empPerms = typeof emp.permissions === "string" ? JSON.parse(emp.permissions) : (emp.permissions || {});
+                            } catch {
+                              empPerms = {};
+                            }
+                            const activeCalcs: string[] = [];
+                            if (empPerms.calculators?.construction !== false) activeCalcs.push("Construction");
+                            if (empPerms.calculators?.doors !== false) activeCalcs.push("Interior");
+                            if (empPerms.calculators?.kitchen !== false) activeCalcs.push("Kitchen");
+                            if (empPerms.calculators?.wardrobe !== false) activeCalcs.push("Wardrobe");
+
+                            const quotesCount = quoteList.filter(q => q.createdByUserId === emp.id).length;
+                            const projCount = projects.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(emp.id)).length;
+
+                            return (
+                              <Card
+                                key={emp.id}
+                                onClick={() => {
+                                  setSelectedEmployee(emp);
+                                  setSelectedEmployeeRole(emp.position || "Site Engineer");
+                                  setCalcsAccess(empPerms.calculators || { construction: true, interior: true, kitchen: true, wardrobe: true });
+                                  setPriceMode(empPerms.pricingMode || "show");
+                                  setQuotePerms(empPerms.quote || { create: true, edit: true, delete: true, duplicate: true, downloadPdf: true, print: true });
+                                  setProjPerms(empPerms.project || { access: true, create: true, edit: true, close: true, uploadImages: true, updateProgress: true });
+                                }}
+                                className="cursor-pointer border-slate-200 hover:shadow bg-white hover:border-slate-350 transition relative overflow-hidden"
+                              >
+                                <CardHeader className="pb-2 flex flex-row justify-between items-start">
+                                  <div>
+                                    <CardTitle className="text-sm font-extrabold text-slate-900">{emp.name}</CardTitle>
+                                    <CardDescription className="text-[10px] font-mono mt-0.5 uppercase tracking-wide">ID: EMP-{emp.id.slice(0, 8).toUpperCase()}</CardDescription>
+                                  </div>
+                                  <span className="inline-block bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">
+                                    {emp.position || "Staff"}
                                   </span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 mt-1 bg-slate-50 p-1.5 rounded">
-                                  <div>
-                                    <span className="text-slate-400 block uppercase">Quotations</span>
-                                    <span className="text-xs font-black text-indigo-600">{quotesCount} Generated</span>
+                                </CardHeader>
+                                <CardContent className="space-y-2.5 text-[11px] text-slate-600">
+                                  <div className="grid gap-1">
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Email:</span>
+                                      <span className="font-medium text-slate-800">{emp.email}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Phone:</span>
+                                      <span className="font-medium text-slate-800">{emp.phone || "N/A"}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Status:</span>
+                                      <span className="inline-block bg-emerald-50 text-emerald-805 text-[8px] font-black uppercase px-1 rounded">
+                                        Active
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between font-semibold">
+                                      <span className="text-slate-400">Last Login:</span>
+                                      <span className="text-slate-800">
+                                        {emp.lastLogin ? new Date(emp.lastLogin).toLocaleString() : "Never logged in"}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase">Projects</span>
-                                    <span className="text-xs font-black text-indigo-600">{projCount} Assigned</span>
+
+                                  <div className="border-t border-slate-100 pt-2 grid gap-1.5 text-[10px]">
+                                    <div>
+                                      <span className="text-slate-400 font-bold uppercase block tracking-wider mb-0.5">Calculator Access</span>
+                                      <span className="font-semibold text-slate-800">
+                                        {activeCalcs.length === 0 ? "None" : activeCalcs.join(", ")}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 mt-1 bg-slate-50 p-1.5 rounded">
+                                      <div>
+                                        <span className="text-slate-400 block uppercase">Quotations</span>
+                                        <span className="text-xs font-black text-indigo-600">{quotesCount} Generated</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400 block uppercase">Projects</span>
+                                        <span className="text-xs font-black text-indigo-600">{projCount} Assigned</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </motion.div>
           )}
