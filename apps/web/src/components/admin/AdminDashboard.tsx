@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import jsPDF from "jspdf";
@@ -165,33 +165,33 @@ export function AdminDashboard({ defaultTab = "overview" }: AdminDashboardProps)
   }, [defaultTab]);
 
   // Quick Stats Computations
-  const totalCompanies = companies.length;
-  const totalEmployees = users.filter((u) => u.role === "employee").length;
+  const totalCompanies = useMemo(() => companies.length, [companies]);
+  const totalEmployees = useMemo(() => users.filter((u) => u.role === "employee").length, [users]);
   // Unique customers based on users collection with role "customer", or unique customer emails
-  const totalCustomers = Array.from(new Set([
+  const totalCustomers = useMemo(() => Array.from(new Set([
     ...users.filter((u) => u.role === "customer").map((u) => u.email),
     ...quotes.map((q) => q.customerEmail),
     ...projects.map((p) => p.customerDetails?.email)
-  ].filter(Boolean))).length;
+  ].filter(Boolean))).length, [users, quotes, projects]);
   
-  const totalProjectsCount = projects.length;
-  const totalQuotationsCount = quotes.length;
+  const totalProjectsCount = useMemo(() => projects.length, [projects]);
+  const totalQuotationsCount = useMemo(() => quotes.length, [quotes]);
 
   // Last Quotation
-  const sortedQuotes = [...quotes].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const lastQuotation = sortedQuotes[0] || null;
+  const sortedQuotes = useMemo(() => [...quotes].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [quotes]);
+  const lastQuotation = useMemo(() => sortedQuotes[0] || null, [sortedQuotes]);
 
   // Last Project
-  const sortedProjects = [...projects].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const lastProject = sortedProjects[0] || null;
+  const sortedProjects = useMemo(() => [...projects].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [projects]);
+  const lastProject = useMemo(() => sortedProjects[0] || null, [sortedProjects]);
 
   // Recently Active Companies count (companies active or created in the past 7 days)
-  const recentlyActiveCompaniesCount = companies.filter((c) => {
+  const recentlyActiveCompaniesCount = useMemo(() => companies.filter((c) => {
     if (!c.updatedAt) return false;
     const diffTime = Math.abs(Date.now() - new Date(c.updatedAt).getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 7;
-  }).length;
+  }).length, [companies]);
 
   // Format Currency
   const formatCurrency = (val: number) => {
@@ -474,59 +474,69 @@ export function AdminDashboard({ defaultTab = "overview" }: AdminDashboardProps)
   const handleSearchChange = (e: any) => setSearchQuery(e.target.value);
 
   // Filter lists based on input queries
-  const filteredCompanies = companies.filter((c) => {
-    const matchesSearch = c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          c.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === "all" || c.subscription?.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredCompanies = useMemo(() => {
+    return companies.filter((c) => {
+      const matchesSearch = c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            c.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            c.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = filterStatus === "all" || c.subscription?.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [companies, searchQuery, filterStatus]);
 
-  const filteredEmployees = users.filter((u) => {
-    if (u.role !== "employee") return false;
-    const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.phone?.includes(searchQuery);
-    const matchesCompany = filterCompany === "all" || u.companyId === filterCompany;
-    return matchesSearch && matchesCompany;
-  });
+  const filteredEmployees = useMemo(() => {
+    return users.filter((u) => {
+      if (u.role !== "employee") return false;
+      const matchesSearch = u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            u.phone?.includes(searchQuery);
+      const matchesCompany = filterCompany === "all" || u.companyId === filterCompany;
+      return matchesSearch && matchesCompany;
+    });
+  }, [users, searchQuery, filterCompany]);
 
-  const filteredProjects = projects.filter((p) => {
-    const matchesSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.customerDetails?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = filterCompany === "all" || p.companyId === filterCompany;
-    return matchesSearch && matchesCompany;
-  });
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const matchesSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            p.customerDetails?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCompany = filterCompany === "all" || p.companyId === filterCompany;
+      return matchesSearch && matchesCompany;
+    });
+  }, [projects, searchQuery, filterCompany]);
 
-  const filteredQuotes = quotes.filter((q) => {
-    const matchesSearch = q.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          q.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          q.calculatorUsed?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredQuotes = useMemo(() => {
+    return quotes.filter((q) => {
+      const matchesSearch = q.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            q.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            q.calculatorUsed?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesSearch;
+    });
+  }, [quotes, searchQuery]);
 
-  const filteredCustomers = Array.from(
-    new Map(
-      [
-        ...users.filter((u) => u.role === "customer"),
-        ...quotes.map((q) => ({
-          id: q.customerId || `cust-${q.customerEmail}`,
-          name: q.customerName,
-          email: q.customerEmail,
-          phone: q.customerPhone,
-          companyId: q.createdByUserId || "",
-          createdAt: q.createdAt
-        }))
-      ]
-      .filter((c: any) => c.name && c.email)
-      .map((c: any) => [c.email, c])
-    ).values()
-  ).filter((cust: any) => {
-    const matchesSearch = cust.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          cust.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          cust.phone?.includes(searchQuery);
-    return matchesSearch;
-  });
+  const filteredCustomers = useMemo(() => {
+    return Array.from(
+      new Map(
+        [
+          ...users.filter((u) => u.role === "customer"),
+          ...quotes.map((q) => ({
+            id: q.customerId || `cust-${q.customerEmail}`,
+            name: q.customerName,
+            email: q.customerEmail,
+            phone: q.customerPhone,
+            companyId: q.createdByUserId || "",
+            createdAt: q.createdAt
+          }))
+        ]
+        .filter((c: any) => c.name && c.email)
+        .map((c: any) => [c.email, c])
+      ).values()
+    ).filter((cust: any) => {
+      const matchesSearch = cust.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            cust.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            cust.phone?.includes(searchQuery);
+      return matchesSearch;
+    });
+  }, [users, quotes, searchQuery]);
 
   return (
     <div className="space-y-6 text-slate-800 pb-16">

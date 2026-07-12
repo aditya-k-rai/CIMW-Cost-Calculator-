@@ -36,10 +36,42 @@ class LocalDbWriter {
 let db = null;
 let localWriter = null;
 
-const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+let serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+let credentialJson = null;
+
 if (serviceAccountEnv) {
   try {
-    const credentialJson = JSON.parse(serviceAccountEnv);
+    credentialJson = JSON.parse(serviceAccountEnv);
+  } catch (err) {
+    console.warn("⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT env variable:", err.message);
+  }
+}
+
+if (!credentialJson) {
+  const possiblePaths = [
+    path.resolve(__dirname, "../firebase-service-account.json"),
+    path.resolve(__dirname, "../../firebase-service-account.json"),
+    path.resolve(__dirname, "../service-account.json"),
+    path.resolve(__dirname, "../../service-account.json"),
+    path.resolve(process.cwd(), "firebase-service-account.json"),
+    path.resolve(process.cwd(), "service-account.json")
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        credentialJson = JSON.parse(fs.readFileSync(p, "utf8"));
+        console.log(`📄 Seeder loaded Firebase credentials from: ${p}`);
+        break;
+      } catch (err) {
+        console.warn(`⚠️ Failed to parse credentials at ${p}:`, err.message);
+      }
+    }
+  }
+}
+
+if (credentialJson) {
+  try {
     const apps = getApps();
     let app;
     if (apps.length === 0) {
@@ -52,7 +84,7 @@ if (serviceAccountEnv) {
     db = getFirestore(app);
     console.log("🔥 Connected to Firebase Firestore for seeding...");
   } catch (err) {
-    console.warn("⚠️ Failed to parse service account JSON. Seeding locally instead. Error:", err.message);
+    console.warn("⚠️ Failed to connect to Firebase Firestore. Seeding locally instead. Error:", err.message);
   }
 }
 

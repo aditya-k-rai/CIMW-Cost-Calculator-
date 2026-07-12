@@ -170,11 +170,41 @@ export class FirebaseService implements OnModuleInit {
   private isFallback = false;
 
   onModuleInit() {
-    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let credentialJson: any = null;
 
     if (serviceAccountEnv) {
       try {
-        const credentialJson = JSON.parse(serviceAccountEnv);
+        credentialJson = JSON.parse(serviceAccountEnv);
+      } catch (err: any) {
+        console.warn("⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT environment variable:", err.message);
+      }
+    }
+
+    if (!credentialJson) {
+      // Look for physical JSON credential files in root or api subfolders
+      const possiblePaths = [
+        path.resolve(process.cwd(), "firebase-service-account.json"),
+        path.resolve(process.cwd(), "apps/api/firebase-service-account.json"),
+        path.resolve(process.cwd(), "service-account.json"),
+        path.resolve(process.cwd(), "apps/api/service-account.json")
+      ];
+
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          try {
+            credentialJson = JSON.parse(fs.readFileSync(p, "utf8"));
+            console.log(`📄 Loaded Firebase credentials file from: ${p}`);
+            break;
+          } catch (err: any) {
+            console.warn(`⚠️ Failed to parse credentials file at ${p}:`, err.message);
+          }
+        }
+      }
+    }
+
+    if (credentialJson) {
+      try {
         const apps = getApps();
         if (apps.length === 0) {
           this.app = initializeApp({
