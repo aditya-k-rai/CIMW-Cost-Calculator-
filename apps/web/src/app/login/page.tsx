@@ -49,13 +49,16 @@ export default function Login() {
   const [googleIdToken, setGoogleIdToken] = useState("");
   const [googleUid, setGoogleUid] = useState("");
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       if (user.role === "admin") {
         router.push("/admin");
+      } else if (user.role === "company") {
+        router.push("/company");
+      } else if (user.role === "employee") {
+        router.push("/employee");
       } else {
-        router.push("/dashboard");
+        router.push("/customer");
       }
     }
   }, [user, router]);
@@ -118,8 +121,12 @@ export default function Login() {
           setSuccessMsg("Signed in via Google successfully!");
           if (res.user.role === "admin") {
             router.push("/admin");
+          } else if (res.user.role === "company") {
+            router.push("/company");
+          } else if (res.user.role === "employee") {
+            router.push("/employee");
           } else {
-            router.push("/dashboard");
+            router.push("/customer");
           }
         } else {
           // Google user is not registered in our database
@@ -150,8 +157,12 @@ export default function Login() {
         if (res.success) {
           if (res.user.role === "admin") {
             router.push("/admin");
+          } else if (res.user.role === "company") {
+            router.push("/company");
+          } else if (res.user.role === "employee") {
+            router.push("/employee");
           } else {
-            router.push("/dashboard");
+            router.push("/customer");
           }
         }
       } else if (mode === "register") {
@@ -179,8 +190,12 @@ export default function Login() {
           setSuccessMsg("Account created successfully!");
           if (res.user.role === "admin") {
             router.push("/admin");
+          } else if (res.user.role === "company") {
+            router.push("/company");
+          } else if (res.user.role === "employee") {
+            router.push("/employee");
           } else {
-            router.push("/dashboard");
+            router.push("/customer");
           }
         }
       } else if (mode === "recover") {
@@ -227,8 +242,12 @@ export default function Login() {
         setSuccessMsg("Profile registration completed successfully!");
         if (res.user.role === "admin") {
           router.push("/admin");
+        } else if (res.user.role === "company") {
+          router.push("/company");
+        } else if (res.user.role === "employee") {
+          router.push("/employee");
         } else {
-          router.push("/dashboard");
+          router.push("/customer");
         }
       }
     } catch (err: any) {
