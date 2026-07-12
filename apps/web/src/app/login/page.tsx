@@ -373,29 +373,33 @@ export default function Login() {
                   )}
 
                   {/* Pincode & Dynamic Lookup */}
-                  <div className="grid gap-1">
-                    <Label className="text-xs font-bold text-slate-700 uppercase">Pincode *</Label>
-                    <Input
-                      required
-                      value={pincode}
-                      onChange={(e) => setPincode(e.target.value)}
-                      placeholder="6-digit ZIP code"
-                      className="border-slate-300"
-                      maxLength={6}
-                    />
-                  </div>
+                  {activeRole !== "admin" && (
+                    <>
+                      <div className="grid gap-1">
+                        <Label className="text-xs font-bold text-slate-700 uppercase">Pincode *</Label>
+                        <Input
+                          required
+                          value={pincode}
+                          onChange={(e) => setPincode(e.target.value)}
+                          placeholder="6-digit ZIP code"
+                          className="border-slate-300"
+                          maxLength={6}
+                        />
+                      </div>
 
-                  {district && state && (
-                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
-                      <div>
-                        <span className="text-slate-500 font-semibold uppercase block">District</span>
-                        <span className="text-slate-800 font-bold">{district}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-semibold uppercase block">State</span>
-                        <span className="text-slate-800 font-bold">{state}</span>
-                      </div>
-                    </div>
+                      {district && state && (
+                        <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                          <div>
+                            <span className="text-slate-500 font-semibold uppercase block">District</span>
+                            <span className="text-slate-800 font-bold">{district}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 font-semibold uppercase block">State</span>
+                            <span className="text-slate-800 font-bold">{state}</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Customer specific: budget & purpose */}
@@ -687,29 +691,33 @@ export default function Login() {
               )}
 
               {/* Pincode & address */}
-              <div className="grid gap-1">
-                <Label className="text-xs font-bold text-slate-700 uppercase">Pincode *</Label>
-                <Input
-                  required
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  placeholder="ZIP code"
-                  className="border-slate-300"
-                  maxLength={6}
-                />
-              </div>
+              {activeRole !== "admin" && (
+                <>
+                  <div className="grid gap-1">
+                    <Label className="text-xs font-bold text-slate-700 uppercase">Pincode *</Label>
+                    <Input
+                      required
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value)}
+                      placeholder="ZIP code"
+                      className="border-slate-300"
+                      maxLength={6}
+                    />
+                  </div>
 
-              {district && state && (
-                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
-                  <div>
-                    <span className="text-slate-500 font-semibold block uppercase">District</span>
-                    <span className="text-slate-800 font-bold">{district}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 font-semibold block uppercase">State</span>
-                    <span className="text-slate-800 font-bold">{state}</span>
-                  </div>
-                </div>
+                  {district && state && (
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                      <div>
+                        <span className="text-slate-500 font-semibold block uppercase">District</span>
+                        <span className="text-slate-800 font-bold">{district}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 font-semibold block uppercase">State</span>
+                        <span className="text-slate-800 font-bold">{state}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Customer spec */}
