@@ -1,5 +1,6 @@
 datasource db {
   provider = "sqlite"
+  url      = "file:dev.db"
 }
 
 generator client {
@@ -8,41 +9,82 @@ generator client {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  firebaseUid  String?  @unique
-  email        String   @unique
-  password     String?  // Nullable for Google Auth users
-  name         String
-  phone        String?
-  role         String   @default("customer") // "customer", "company", "employee", "admin"
-  pincode      String?
-  district     String?
-  state        String?
+  id                String    @id @default(uuid())
+  firebaseUid       String?   @unique
+  email             String    @unique
+  password          String?
+  name              String
+  phone             String?
+  role              String    @default("customer") // "admin", "company", "employee", "customer"
+  pincode           String?
+  district          String?
+  state             String?
+  budgetRange       String?
+  purpose           String?
+  gstNumber         String?
+  businessMail      String?
+  keyId             String?
+  position          String?
+  companyCode       String?
+  companyId         String?
+  company           User?     @relation("CompanyEmployees", fields: [companyId], references: [id])
+  employees         User[]    @relation("CompanyEmployees")
+  permissions       String?   @default("{}")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // New fields for company management
+  address           String?
+  status            String?   @default("active") // "active", "inactive", "restricted"
+  lastLogin         DateTime?
+  lastActivity      DateTime?
 
-  // Customer specific
-  budgetRange  String?
-  purpose      String?
+  // New fields for subscription management
+  subscriptionStatus    String?   @default("inactive") // "active", "inactive", "expired"
+  subscriptionStartDate DateTime?
+  subscriptionExpiryDate DateTime?
 
-  // Company specific
-  gstNumber    String?
-  businessMail String?
-  keyId        String?
+  // Relations
+  createdProjects   Project[] @relation("CreatedProjects")
+  assignedProjects  Project[] @relation("AssignedProjects")
+  customerProjects  Project[] @relation("CustomerProjects")
+  createdQuotes     Quote[]   @relation("CreatedQuotes")
+  customerQuotes    Quote[]   @relation("CustomerQuotes")
+}
 
-  // Employee specific
-  position     String?
-  companyCode  String?
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  companyId   String
+  company     User      @relation("CreatedProjects", fields: [companyId], references: [id])
+  customerId  String
+  customer    User      @relation("CustomerProjects", fields: [customerId], references: [id])
+  assignedEmployees User[] @relation("AssignedProjects")
+  status      String    @default("ongoing") // "ongoing", "completed", "on-hold"
+  budget      Float?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  quotes      Quote[]
+}
 
-  // Company-Employee relationship
-  companyId    String?
-  company      User?    @relation("CompanyEmployees", fields: [companyId], references: [id])
-  employees    User[]   @relation("CompanyEmployees")
-
-  // Permissions (JSON config keys, e.g. enabled calculators)
-  permissions  String?  @default("{}")
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  quotes       Quote[]
+model Quote {
+  id              String    @id @default(uuid())
+  quoteNumber     String    @unique
+  companyId       String
+  company         User      @relation(fields: [companyId], references: [id])
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id])
+  customerId      String
+  customer        User      @relation("CustomerQuotes", fields: [customerId], references: [id])
+  employeeId      String
+  employee        User      @relation("CreatedQuotes", fields: [employeeId], references: [id])
+  calculatorUsed  String
+  amount          Float
+  status          String    @default("draft") // "draft", "sent", "accepted", "rejected"
+  createdAt       DateTime  @default(now())
+  productsJson    String   @default("[]")
+  woodworkJson    String   @default("[]")
+  doorJson        String   @default("[]")
 }
 
 model Brand {
@@ -55,12 +97,12 @@ model Category {
   id            String  @id @default(uuid())
   name          String
   description   String?
-  subcategories String  @default("[]") // JSON stringified array of subcategory strings
+  subcategories String  @default("[]")
 }
 
 model Product {
   id           String   @id
-  calculator   String   // "modular-kitchen", "interior", "wardrobe"
+  calculator   String
   categoryId   String
   subcategory  String   @default("No Subcategory")
   name         String
@@ -68,7 +110,7 @@ model Product {
   imageUrl     String?
   unit         String
   rate         Float
-  variants     String   @default("[]") // JSON stringified array of ProductVariant objects
+  variants     String   @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -77,7 +119,7 @@ model WoodworkItem {
   id          String   @id @default(uuid())
   name        String
   description String?
-  options     String   @default("[]") // JSON stringified array of WoodworkOption objects
+  options     String   @default("[]")
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -118,7 +160,7 @@ model DoorFinish {
   variant     DoorVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  priceType   String      @default("absolute") // "absolute" or "percentage"
+  priceType   String      @default("absolute")
   priceValue  Float
   imageUrl    String?
   isActive    Boolean     @default(true)
@@ -131,9 +173,9 @@ model DoorAddonGroup {
   id                 String      @id @default(uuid())
   name               String
   description        String?
-  selectionType      String      @default("multiple") // "single" or "multiple"
+  selectionType      String      @default("multiple")
   isRequired         Boolean     @default(false)
-  appliesToTemplates String      @default("[]") // JSON stringified template IDs
+  appliesToTemplates String      @default("[]")
   sortOrder          Int         @default(0)
   addons             DoorAddon[]
   createdAt          DateTime    @default(now())
@@ -159,32 +201,11 @@ model DoorSetting {
   id                  String   @id @default("global")
   taxPercent          Float    @default(18.0)
   installationCharges Float    @default(0.0)
-  installationType    String   @default("fixed") // "fixed" or "per_unit"
+  installationType    String   @default("fixed")
   minQuantity         Int      @default(1)
   maxQuantity         Int      @default(100)
   whatsappNumber      String   @default("")
-  floorOptions        String   @default("[]") // JSON stringified array
-  areaOptions         String   @default("[]") // JSON stringified array
+  floorOptions        String   @default("[]")
+  areaOptions         String   @default("[]")
   updatedAt           DateTime @updatedAt
-}
-
-model Quote {
-  id                  String   @id @default(uuid())
-  customerId          String?
-  customer            User?    @relation(fields: [customerId], references: [id])
-  customerName        String
-  customerPhone       String
-  customerEmail       String
-  customerLocation    String?
-  projectType         String
-  roomSize            Float?
-  budgetRange         String?
-  startDate           String?
-  specialRequirements String?
-  additionalNotes     String?
-  totalAmount         Float
-  productsJson        String   @default("[]") // Details of products in cart
-  woodworkJson        String   @default("[]") // Woodwork selections
-  doorJson            String   @default("[]") // Door selections
-  createdAt           DateTime @default(now())
 }
