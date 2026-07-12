@@ -148,6 +148,29 @@ export default function Dashboard() {
   const [timelineNotesInput, setTimelineNotesInput] = useState("");
 
   const [selectedProjectIdForQuote, setSelectedProjectIdForQuote] = useState("");
+  const [projBudget, setProjBudget] = useState<number>(0);
+  const [selectedQuoteForDetails, setSelectedQuoteForDetails] = useState<any>(null);
+
+  // Quotation Activity sorting, filtering, searching, and pagination states
+  const [quoteSearch, setQuoteSearch] = useState("");
+  const [quoteSort, setQuoteSort] = useState("newest");
+  const [quoteFilterCalc, setQuoteFilterCalc] = useState("");
+  const [quoteFilterEmployee, setQuoteFilterEmployee] = useState("");
+  const [quoteFilterProject, setQuoteFilterProject] = useState("");
+  const [quoteFilterStatus, setQuoteFilterStatus] = useState("");
+  const [quoteFilterDate, setQuoteFilterDate] = useState("");
+  const [quotePage, setQuotePage] = useState(1);
+  const quotesPerPage = 5;
+
+  // Project Activity sorting, filtering, searching, and pagination states
+  const [projSort, setProjSort] = useState("newest");
+  const [projFilterStatus, setProjFilterStatus] = useState("");
+  const [projFilterEmployee, setProjFilterEmployee] = useState("");
+  const [projFilterCustomer, setProjFilterCustomer] = useState("");
+  const [projFilterBudget, setProjFilterBudget] = useState("");
+  const [projFilterDate, setProjFilterDate] = useState("");
+  const [projPage, setProjPage] = useState(1);
+  const projsPerPage = 5;
 
   const ROLE_PRESETS = {
     "Site Engineer": {
@@ -258,6 +281,352 @@ export default function Dashboard() {
     return projects.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(user.id));
   }, [projects, user]);
 
+  const statsSummary = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const isToday = (dateStr: string) => {
+      if (!dateStr) return false;
+      return new Date(dateStr).toDateString() === todayStr;
+    };
+
+    const totalQuotes = quoteList.length;
+    const quotesToday = quoteList.filter(q => isToday(q.createdAt)).length;
+    const lastQuoteUpdate = quoteList.length > 0
+      ? new Date(Math.max(...quoteList.map(q => new Date(q.updatedAt || q.createdAt).getTime()))).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : "N/A";
+
+    const activeProjectsList = projects.filter(p => p.status === "active");
+    const totalActiveProjects = activeProjectsList.length;
+    const activeProjectsToday = activeProjectsList.filter(p => isToday(p.createdAt)).length;
+    const lastProjUpdate = projects.length > 0
+      ? new Date(Math.max(...projects.map(p => new Date(p.updatedAt || p.createdAt).getTime()))).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : "N/A";
+
+    const totalEmployeesCount = employees.length;
+    const employeesToday = employees.filter(e => isToday(e.createdAt || e.lastLogin)).length;
+    const lastEmpUpdate = employees.length > 0
+      ? new Date(Math.max(...employees.map(e => new Date(e.lastLogin || Date.now()).getTime()))).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : "N/A";
+
+    const uniqueCustomers = new Set<string>();
+    quoteList.forEach(q => { if (q.customerName) uniqueCustomers.add(q.customerName.toLowerCase().trim()); });
+    projects.forEach(p => { if (p.customerDetails?.name) uniqueCustomers.add(p.customerDetails.name.toLowerCase().trim()); });
+    const totalCustomersCount = uniqueCustomers.size;
+    
+    const customersTodaySet = new Set<string>();
+    quoteList.filter(q => isToday(q.createdAt)).forEach(q => { if (q.customerName) customersTodaySet.add(q.customerName.toLowerCase().trim()); });
+    projects.filter(p => isToday(p.createdAt)).forEach(p => { if (p.customerDetails?.name) customersTodaySet.add(p.customerDetails.name.toLowerCase().trim()); });
+    const customersToday = customersTodaySet.size;
+
+    const totalRevenue = quoteList.reduce((sum, q) => sum + (q.totalAmount || 0), 0);
+    const revenueToday = quoteList.filter(q => isToday(q.createdAt)).reduce((sum, q) => sum + (q.totalAmount || 0), 0);
+
+    const pendingQuotes = quoteList.filter(q => q.status === "pending" || q.status === "draft" || q.status === "sent");
+    const totalPendingQuotes = pendingQuotes.length;
+    const pendingQuotesToday = pendingQuotes.filter(q => isToday(q.createdAt)).length;
+
+    const completedProjectsList = projects.filter(p => p.status === "closed");
+    const totalCompletedProjects = completedProjectsList.length;
+    const completedProjectsToday = completedProjectsList.filter(p => isToday(p.createdAt)).length;
+
+    const totalOngoingProjects = activeProjectsList.length;
+    const ongoingProjectsToday = activeProjectsList.filter(p => isToday(p.createdAt)).length;
+
+    return {
+      totalQuotes: { count: totalQuotes, today: quotesToday, updated: lastQuoteUpdate },
+      activeProjects: { count: totalActiveProjects, today: activeProjectsToday, updated: lastProjUpdate },
+      employees: { count: totalEmployeesCount, today: employeesToday, updated: lastEmpUpdate },
+      customers: { count: totalCustomersCount, today: customersToday, updated: lastProjUpdate !== "N/A" ? lastProjUpdate : lastQuoteUpdate },
+      revenue: { count: totalRevenue, today: revenueToday, updated: lastQuoteUpdate },
+      pendingQuotes: { count: totalPendingQuotes, today: pendingQuotesToday, updated: lastQuoteUpdate },
+      completedProjects: { count: totalCompletedProjects, today: completedProjectsToday, updated: lastProjUpdate },
+      ongoingProjects: { count: totalOngoingProjects, today: ongoingProjectsToday, updated: lastProjUpdate }
+    };
+  }, [quoteList, projects, employees]);
+
+  const recentActivities = useMemo(() => {
+    const activities: Array<{
+      id: string;
+      type: "login" | "project" | "quote" | "customer";
+      timestamp: string;
+      title: string;
+      subtitle: string;
+      meta?: string;
+    }> = [];
+
+    employees.forEach(emp => {
+      if (emp.lastLogin) {
+        activities.push({
+          id: `login-${emp.id}-${emp.lastLogin}`,
+          type: "login",
+          timestamp: emp.lastLogin,
+          title: `Login: ${emp.name}`,
+          subtitle: `Role: ${emp.position || "Staff"}`,
+          meta: `Device: Web Browser`
+        });
+      }
+    });
+
+    projects.forEach(p => {
+      if (p.createdAt) {
+        const creatorName = employees.find(e => e.id === p.createdByUserId)?.name || "Administrator";
+        activities.push({
+          id: `proj-${p.id}`,
+          type: "project",
+          timestamp: p.createdAt,
+          title: `Project: ${p.name}`,
+          subtitle: `Created by: ${creatorName}`,
+          meta: `Cust: ${p.customerDetails?.name}`
+        });
+      }
+    });
+
+    quoteList.forEach(q => {
+      if (q.createdAt) {
+        const creatorName = employees.find(e => e.id === q.createdByUserId)?.name || "Administrator";
+        activities.push({
+          id: `quote-${q.id}`,
+          type: "quote",
+          timestamp: q.createdAt,
+          title: `Quote: Q-${q.id.slice(0, 5).toUpperCase()}`,
+          subtitle: `By: ${creatorName} (${q.calculatorUsed || q.projectType})`,
+          meta: formatCurrency(q.totalAmount)
+        });
+      }
+    });
+
+    const seenCust = new Set<string>();
+    projects.forEach(p => {
+      const custName = p.customerDetails?.name;
+      if (custName && !seenCust.has(custName)) {
+        seenCust.add(custName);
+        activities.push({
+          id: `cust-${p.id}`,
+          type: "customer",
+          timestamp: p.createdAt || new Date().toISOString(),
+          title: `Customer: ${custName}`,
+          subtitle: `Company: ${p.name}`,
+          meta: p.customerDetails?.phone || ""
+        });
+      }
+    });
+
+    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10);
+  }, [employees, projects, quoteList]);
+
+  const filteredQuotes = useMemo(() => {
+    let result = [...quoteList];
+
+    if (quoteSearch) {
+      const qLower = quoteSearch.toLowerCase();
+      result = result.filter(q =>
+        (q.customerName && q.customerName.toLowerCase().includes(qLower)) ||
+        (q.id && `Q-${q.id.slice(0, 5)}`.toLowerCase().includes(qLower)) ||
+        (q.projectName && q.projectName.toLowerCase().includes(qLower)) ||
+        (q.calculatorUsed && q.calculatorUsed.toLowerCase().includes(qLower)) ||
+        (employees.find(e => e.id === q.createdByUserId)?.name || "").toLowerCase().includes(qLower)
+      );
+    }
+
+    if (quoteFilterCalc) {
+      result = result.filter(q => q.calculatorUsed === quoteFilterCalc || q.projectType === quoteFilterCalc);
+    }
+    if (quoteFilterEmployee) {
+      result = result.filter(q => q.createdByUserId === quoteFilterEmployee);
+    }
+    if (quoteFilterProject) {
+      result = result.filter(q => q.projectId === quoteFilterProject);
+    }
+    if (quoteFilterStatus) {
+      result = result.filter(q => q.status === quoteFilterStatus);
+    }
+    if (quoteFilterDate) {
+      const now = new Date();
+      result = result.filter(q => {
+        const qDate = new Date(q.createdAt);
+        if (quoteFilterDate === "today") {
+          return qDate.toDateString() === now.toDateString();
+        } else if (quoteFilterDate === "week") {
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          return qDate >= weekAgo;
+        } else if (quoteFilterDate === "month") {
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          return qDate >= monthAgo;
+        }
+        return true;
+      });
+    }
+
+    result.sort((a, b) => {
+      if (quoteSort === "newest") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (quoteSort === "oldest") {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (quoteSort === "highest") {
+        return (b.totalAmount || 0) - (a.totalAmount || 0);
+      }
+      if (quoteSort === "lowest") {
+        return (a.totalAmount || 0) - (b.totalAmount || 0);
+      }
+      if (quoteSort === "recently-updated") {
+        return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+      }
+      if (quoteSort === "pending") {
+        return (a.status === "pending" || a.status === "draft" || a.status === "sent" ? -1 : 1);
+      }
+      if (quoteSort === "approved") {
+        return (a.status === "approved" ? -1 : 1);
+      }
+      if (quoteSort === "rejected") {
+        return (a.status === "rejected" ? -1 : 1);
+      }
+      if (quoteSort === "draft") {
+        return (a.status === "draft" ? -1 : 1);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [quoteList, quoteSearch, quoteSort, quoteFilterCalc, quoteFilterEmployee, quoteFilterProject, quoteFilterStatus, quoteFilterDate, employees]);
+
+  const filteredProjectsList = useMemo(() => {
+    let result = [...userProjects];
+
+    if (projFilterStatus) {
+      result = result.filter(p => p.status === projFilterStatus);
+    }
+    if (projFilterEmployee) {
+      result = result.filter(p => p.assignedEmployeeIds && p.assignedEmployeeIds.includes(projFilterEmployee));
+    }
+    if (projFilterCustomer) {
+      result = result.filter(p => p.customerDetails?.name?.toLowerCase().includes(projFilterCustomer.toLowerCase()));
+    }
+    if (projFilterBudget) {
+      result = result.filter(p => {
+        const b = p.budget || 0;
+        if (projFilterBudget === "0-5L") return b < 500000;
+        if (projFilterBudget === "5L-15L") return b >= 500000 && b <= 1500000;
+        if (projFilterBudget === "15L+") return b > 1500000;
+        return true;
+      });
+    }
+    if (projFilterDate) {
+      const now = new Date();
+      result = result.filter(p => {
+        const pDate = new Date(p.createdAt);
+        if (projFilterDate === "today") {
+          return pDate.toDateString() === now.toDateString();
+        } else if (projFilterDate === "week") {
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          return pDate >= weekAgo;
+        } else if (projFilterDate === "month") {
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          return pDate >= monthAgo;
+        }
+        return true;
+      });
+    }
+
+    result.sort((a, b) => {
+      if (projSort === "newest") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (projSort === "oldest") {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (projSort === "highest") {
+        return (b.budget || 0) - (a.budget || 0);
+      }
+      if (projSort === "lowest") {
+        return (a.budget || 0) - (b.budget || 0);
+      }
+      if (projSort === "recently-updated") {
+        return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+      }
+      if (projSort === "completed") {
+        return (a.status === "closed" ? -1 : 1);
+      }
+      if (projSort === "ongoing") {
+        return (a.status === "active" ? -1 : 1);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [userProjects, projSort, projFilterStatus, projFilterEmployee, projFilterCustomer, projFilterBudget, projFilterDate]);
+
+  const paginatedQuotes = useMemo(() => {
+    const start = (quotePage - 1) * quotesPerPage;
+    return filteredQuotes.slice(start, start + quotesPerPage);
+  }, [filteredQuotes, quotePage]);
+
+  const totalQuotePages = Math.ceil(filteredQuotes.length / quotesPerPage) || 1;
+
+  const paginatedProjects = useMemo(() => {
+    const start = (projPage - 1) * projsPerPage;
+    return filteredProjectsList.slice(start, start + projsPerPage);
+  }, [filteredProjectsList, projPage]);
+
+  const totalProjPages = Math.ceil(filteredProjectsList.length / projsPerPage) || 1;
+
+  async function duplicateQuote(quote: any) {
+    if (user?.role === "employee" && userPermissions.quote?.duplicate === false) {
+      alert("You do not have permission to duplicate quotations.");
+      return;
+    }
+    try {
+      const payload = {
+        ...quote,
+        customerName: `${quote.customerName} (Copy)`,
+        createdAt: new Date().toISOString()
+      };
+      delete payload.id;
+      delete payload._id;
+      await api.quotes.create(payload);
+      alert("Quotation duplicated successfully!");
+      void loadAllDashboardData();
+    } catch (err: any) {
+      alert("Failed to duplicate quote: " + err.message);
+    }
+  }
+
+  async function editQuote(quote: any) {
+    if (user?.role === "employee" && userPermissions.quote?.edit === false) {
+      alert("You do not have permission to edit quotations.");
+      return;
+    }
+    setSelectedProjectIdForQuote(quote.projectId || "");
+    quoteForm.setValue("customerName", quote.customerName || "");
+    quoteForm.setValue("phone", quote.customerPhone || "");
+    quoteForm.setValue("email", quote.customerEmail || "");
+    quoteForm.setValue("city", quote.customerLocation || "");
+    quoteForm.setValue("budgetRange", quote.budgetRange || "");
+    quoteForm.setValue("notes", quote.notes || "");
+    
+    setCart(quote.products || []);
+    setWoodworkArea(quote.woodwork?.area || 0);
+    setSelectedWoodworkOptions(quote.woodwork?.selections || {});
+    
+    // Switch to calculator workspace
+    setActiveTab(quote.calculatorUsed || "modular-kitchen");
+  }
+
+  async function handleDeleteQuote(quoteId: string) {
+    if (user?.role === "employee" && userPermissions.quote?.delete === false) {
+      alert("You do not have permission to delete quotations.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this quotation? This action is permanent.")) return;
+    try {
+      await api.quotes.delete(quoteId);
+      alert("Quotation deleted successfully.");
+      void loadAllDashboardData();
+    } catch (err: any) {
+      alert("Failed to delete quote: " + err.message);
+    }
+  }
+
   // Load employee logs
   async function loadEmployees() {
     try {
@@ -292,9 +661,12 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    void loadAllDashboardData();
+    const interval = setInterval(() => {
       void loadAllDashboardData();
-    }
+    }, 5000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Custom presets template applicator
@@ -955,32 +1327,38 @@ export default function Dashboard() {
             })}
           </nav>
 
-          {/* Configuration Estimate summary card */}
-          {activeTab !== "construction" && (
-            <Card className="border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-white">
-                <h3 className="text-sm font-bold">Calculation Cart</h3>
-              </div>
-              <CardContent className="p-4 space-y-3.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Modular Kitchen</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.kitchen)}</span>
+          {/* Recent Activity Panel */}
+          <Card className="border-slate-200 shadow-sm overflow-hidden bg-white/70 backdrop-blur-md">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3 text-white">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-indigo-400" /> Recent Activity
+              </h3>
+            </div>
+            <CardContent className="p-3.5 space-y-4 max-h-[300px] overflow-y-auto pr-1">
+              {recentActivities.length === 0 ? (
+                <div className="text-center text-slate-400 italic text-[10px] py-4">No recent activity logged</div>
+              ) : (
+                <div className="relative border-l border-slate-200 pl-3 ml-1.5 space-y-3.5">
+                  {recentActivities.map((act) => (
+                    <div key={act.id} className="relative text-[10px]">
+                      <span className={`absolute -left-[17px] top-0.5 h-2 w-2 rounded-full border border-white ${
+                        act.type === "login" ? "bg-amber-500" :
+                        act.type === "project" ? "bg-indigo-500" :
+                        act.type === "quote" ? "bg-emerald-500" : "bg-sky-500"
+                      }`} />
+                      
+                      <div className="font-extrabold text-slate-900 leading-tight">{act.title}</div>
+                      <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">{act.subtitle}</div>
+                      {act.meta && <div className="text-[8px] font-mono text-slate-400 mt-0.5">{act.meta}</div>}
+                      <div className="text-[8px] text-indigo-500 mt-1 font-semibold">
+                        {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Wardrobe Items</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.wardrobe)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Interior Doors</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(groupedCartTotal.doors)}</span>
-                </div>
-                <div className="border-t border-slate-100 pt-3 flex justify-between items-end">
-                  <span className="text-xs font-bold text-slate-600 uppercase">Grand Total</span>
-                  <span className="text-base font-bold text-indigo-600">{formatCurrency(groupedCartTotal.grandTotal)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </aside>
 
         {/* Tab Workspaces */}
@@ -1210,8 +1588,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   
-                  <div className="flex justify-between items-center text-xs text-indigo-100 border-t border-white/10 pt-3">
-                    <span>Formula: Area × Rate/sqft</span>
+                  <div className="flex justify-end items-center text-xs text-indigo-100 border-t border-white/10 pt-3">
                     <span className="font-bold text-sm text-white">Estimated cost: {formatCurrency(woodworkTotalCost)}</span>
                   </div>
                 </div>
@@ -1704,41 +2081,425 @@ export default function Dashboard() {
           {/* TAB 1: OVERVIEW DASHBOARD */}
           {activeTab === "overview" && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              {/* Calculators grid at top */}
-              <div>
-                <h2 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4">Cost Estimator Calculators</h2>
-                <div className="grid gap-4 sm:grid-cols-4">
-                  {[
-                    { id: "construction", label: "Construction Calculator", icon: Building2, active: hasConstructionAccess },
-                    { id: "interior", label: "Interior Calculator", icon: DoorOpen, active: hasInteriorAccess },
-                    { id: "modular-kitchen", label: "Kitchen Calculator", icon: ChefHat, active: hasKitchenAccess },
-                    { id: "wardrobe", label: "Wardrobe Calculator", icon: Layers3, active: hasWardrobeAccess }
-                  ].map((calc) => (
-                    <Card
-                      key={calc.id}
-                      onClick={() => calc.active && setActiveTab(calc.id as WorkspaceTab)}
-                      className={`cursor-pointer border-slate-200 hover:shadow-md transition bg-white relative overflow-hidden ${
-                        !calc.active ? "opacity-60 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <CardContent className="p-5 flex items-center gap-4">
-                        <div className={`p-3 rounded-lg ${!calc.active ? "bg-slate-100 text-slate-400" : "bg-indigo-50 text-indigo-600"}`}>
-                          <calc.icon className="h-6 w-6" />
-                        </div>
-                        <div>
-                          <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{calc.label}</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">
-                            {calc.active ? "Open Calculator Workspace" : "Access Locked by Admin"}
-                          </div>
-                        </div>
-                        {!calc.active && (
-                          <Lock className="h-4 w-4 text-slate-400 absolute top-3 right-3" />
+              
+              {/* Dashboard Summary Panel (Real-Time Cards) */}
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                {[
+                  { title: "Total Quotations Generated", count: statsSummary.totalQuotes.count, today: statsSummary.totalQuotes.today, updated: statsSummary.totalQuotes.updated, icon: FileText, color: "from-blue-500/10 to-indigo-500/5 border-blue-500/20 text-blue-600" },
+                  { title: "Total Active Projects", count: statsSummary.activeProjects.count, today: statsSummary.activeProjects.today, updated: statsSummary.activeProjects.updated, icon: Folder, color: "from-purple-500/10 to-indigo-500/5 border-purple-500/20 text-purple-600" },
+                  { title: "Total Employees", count: statsSummary.employees.count, today: statsSummary.employees.today, updated: statsSummary.employees.updated, icon: User, color: "from-pink-500/10 to-rose-500/5 border-pink-500/20 text-pink-600" },
+                  { title: "Total Customers", count: statsSummary.customers.count, today: statsSummary.customers.today, updated: statsSummary.customers.updated, icon: User, color: "from-sky-500/10 to-teal-500/5 border-sky-500/20 text-sky-600" },
+                  { title: "Total Revenue Generated", count: statsSummary.revenue.count, today: statsSummary.revenue.today, updated: statsSummary.revenue.updated, icon: Building2, color: "from-emerald-500/10 to-green-500/5 border-emerald-500/20 text-emerald-600", isPrice: true },
+                  { title: "Pending Quotations", count: statsSummary.pendingQuotes.count, today: statsSummary.pendingQuotes.today, updated: statsSummary.pendingQuotes.updated, icon: Clock, color: "from-amber-500/10 to-yellow-500/5 border-amber-500/20 text-amber-600" },
+                  { title: "Completed Projects", count: statsSummary.completedProjects.count, today: statsSummary.completedProjects.today, updated: statsSummary.completedProjects.updated, icon: Folder, color: "from-teal-500/10 to-emerald-500/5 border-teal-500/20 text-teal-600" },
+                  { title: "Ongoing Projects", count: statsSummary.ongoingProjects.count, today: statsSummary.ongoingProjects.today, updated: statsSummary.ongoingProjects.updated, icon: Clock, color: "from-orange-500/10 to-amber-500/5 border-orange-500/20 text-orange-600" },
+                ].map((stat, idx) => (
+                  <Card key={idx} className={`border bg-gradient-to-br ${stat.color} shadow-sm overflow-hidden relative group hover:shadow-md transition duration-300`}>
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider group-hover:text-slate-700 transition">{stat.title}</span>
+                        <stat.icon className="h-5 w-5 opacity-40 group-hover:opacity-85 transition duration-300" />
+                      </div>
+                      
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xl sm:text-2xl font-black text-slate-900">
+                          {stat.isPrice ? formatCurrency(stat.count) : stat.count}
+                        </span>
+                        {stat.today > 0 && (
+                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-100/70 px-1 rounded">
+                            +{stat.isPrice ? formatCurrency(stat.today) : stat.today} today
+                          </span>
                         )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                      </div>
+
+                      <div className="text-[8px] text-slate-400 font-semibold flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> Updated: {stat.updated}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+
+              {/* SECTION 1: QUOTATION ACTIVITY */}
+              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+                <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-indigo-500" /> Section 1: Quotation Activity
+                    </CardTitle>
+                    <CardDescription className="text-[10px] text-slate-400">All cost quotations generated across company employees.</CardDescription>
+                  </div>
+                  
+                  {/* Search and Sort controls */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search Customer, Quote ID, Project, Staff..."
+                      value={quoteSearch}
+                      onChange={(e) => { setQuoteSearch(e.target.value); setQuotePage(1); }}
+                      className="h-8 rounded border border-slate-350 bg-white px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <select
+                      value={quoteSort}
+                      onChange={(e) => { setQuoteSort(e.target.value); setQuotePage(1); }}
+                      className="h-8 rounded border border-slate-350 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="highest">Highest Amount</option>
+                      <option value="lowest">Lowest Amount</option>
+                      <option value="recently-updated">Recently Updated</option>
+                      <option value="pending">Show Pending Status</option>
+                      <option value="approved">Show Approved Status</option>
+                      <option value="rejected">Show Rejected Status</option>
+                      <option value="draft">Show Draft Status</option>
+                    </select>
+                  </div>
+                </CardHeader>
+
+                {/* Advanced Filters */}
+                <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Calculator</span>
+                    <select value={quoteFilterCalc} onChange={(e) => { setQuoteFilterCalc(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Calculators</option>
+                      <option value="construction">Construction</option>
+                      <option value="modular-kitchen">Modular Kitchen</option>
+                      <option value="interior">Interior Doors</option>
+                      <option value="wardrobe">Wardrobe Items</option>
+                    </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Employee</span>
+                    <select value={quoteFilterEmployee} onChange={(e) => { setQuoteFilterEmployee(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Employees</option>
+                      {employees.map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
+                    <select value={quoteFilterDate} onChange={(e) => { setQuoteFilterDate(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="week">Last 7 Days</option>
+                      <option value="month">Last 30 Days</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Project</span>
+                    <select value={quoteFilterProject} onChange={(e) => { setQuoteFilterProject(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Projects</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
+                    <select value={quoteFilterStatus} onChange={(e) => { setQuoteFilterStatus(e.target.value); setQuotePage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Statuses</option>
+                      <option value="draft">Draft</option>
+                      <option value="sent">Sent</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                <CardContent className="p-0 overflow-x-auto">
+                  {paginatedQuotes.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic text-xs">No matching quotations found.</div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Quote No.</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer Name</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Calculator</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Generated By</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Role</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Amount</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Date & Time</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paginatedQuotes.map((q) => {
+                          const creator = employees.find(e => e.id === q.createdByUserId);
+                          const creatorName = creator ? creator.name : "Administrator";
+                          const creatorRole = creator ? (creator.position || "Staff") : "Super Admin";
+                          
+                          return (
+                            <tr key={q.id} className="hover:bg-slate-50/50 transition">
+                              <td className="px-4 py-3.5 font-mono font-bold text-slate-900">Q-{q.id.slice(0, 5).toUpperCase()}</td>
+                              <td className="px-4 py-3.5 font-bold text-slate-800">{q.customerName}</td>
+                              <td className="px-4 py-3.5">
+                                {q.projectId ? (
+                                  <div className="space-y-1">
+                                    <span className="font-semibold text-indigo-700 block">{q.projectName || "Linked Project"}</span>
+                                    <Button
+                                      onClick={() => {
+                                        const linkedProj = projects.find(proj => proj.id === q.projectId);
+                                        if (linkedProj) {
+                                          setSelectedProject(linkedProj);
+                                        } else {
+                                          alert("Project details could not be found.");
+                                        }
+                                      }}
+                                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[9px] font-black h-5 px-1.5 rounded flex items-center gap-1 border border-indigo-100"
+                                    >
+                                      Open Project
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 italic">No Project Assigned</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="inline-block bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold capitalize">
+                                  {(q.calculatorUsed || q.projectType || "calculator").replace("-", " ")}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 font-medium text-slate-700">{creatorName}</td>
+                              <td className="px-4 py-3.5">
+                                <span className="inline-block bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">
+                                  {creatorRole}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right font-extrabold text-slate-900">{formatCurrency(q.totalAmount || 0)}</td>
+                              <td className="px-4 py-3.5">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  q.status === "approved" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                                  q.status === "rejected" ? "bg-red-50 text-red-800 border border-red-200" :
+                                  q.status === "pending" || q.status === "sent" ? "bg-amber-50 text-amber-800 border border-amber-200" :
+                                  "bg-slate-100 text-slate-700 border border-slate-200"
+                                }`}>
+                                  {q.status || "draft"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
+                                <div>{new Date(q.createdAt).toLocaleDateString()}</div>
+                                <div className="text-[9px] text-slate-400 mt-0.5">{new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button onClick={() => setSelectedQuoteForDetails(q)} size="sm" variant="ghost" title="View details" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button onClick={() => duplicateQuote(q)} size="sm" variant="ghost" title="Duplicate Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900">
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button onClick={() => editQuote(q)} size="sm" variant="ghost" title="Edit Parameters" className="h-7 w-7 p-0 text-slate-600 hover:text-indigo-600">
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button onClick={() => handleDeleteQuote(q.id)} size="sm" variant="ghost" title="Delete Quote" className="h-7 w-7 p-0 text-slate-600 hover:text-red-600">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+                
+                {/* Pagination Controls */}
+                {totalQuotePages > 1 && (
+                  <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-500 bg-slate-50/50">
+                    <span>Showing Page <b>{quotePage}</b> of <b>{totalQuotePages}</b></span>
+                    <div className="flex gap-2">
+                      <Button disabled={quotePage <= 1} onClick={() => setQuotePage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
+                      <Button disabled={quotePage >= totalQuotePages} onClick={() => setQuotePage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* SECTION 2: PROJECT ACTIVITY */}
+              <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+                <CardHeader className="py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                      <Folder className="h-4 w-4 text-indigo-500" /> Section 2: Project Activity
+                    </CardTitle>
+                    <CardDescription className="text-[10px] text-slate-400">Review status, budget assignments, and execution timelines.</CardDescription>
+                  </div>
+                  
+                  {/* Sort options */}
+                  <div>
+                    <select
+                      value={projSort}
+                      onChange={(e) => { setProjSort(e.target.value); setProjPage(1); }}
+                      className="h-8 rounded border border-slate-350 bg-white px-2 text-xs text-slate-800 focus:outline-none font-bold"
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="highest">Highest Budget</option>
+                      <option value="lowest">Lowest Budget</option>
+                      <option value="recently-updated">Recently Updated</option>
+                      <option value="completed">Completed Projects</option>
+                      <option value="ongoing">Ongoing Projects</option>
+                    </select>
+                  </div>
+                </CardHeader>
+
+                {/* Filters */}
+                <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-2 text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Budget Range</span>
+                    <select value={projFilterBudget} onChange={(e) => { setProjFilterBudget(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Budgets</option>
+                      <option value="0-5L">&lt; 5 Lakhs</option>
+                      <option value="5L-15L">5L - 15 Lakhs</option>
+                      <option value="15L+">&gt; 15 Lakhs</option>
+                    </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Status</span>
+                    <select value={projFilterStatus} onChange={(e) => { setProjFilterStatus(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Statuses</option>
+                      <option value="active">Ongoing (Active)</option>
+                      <option value="closed">Completed (Closed)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Assigned Staff</span>
+                    <select value={projFilterEmployee} onChange={(e) => { setProjFilterEmployee(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Employees</option>
+                      {employees.map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Customer Name</span>
+                    <input
+                      type="text"
+                      placeholder="Filter customer..."
+                      value={projFilterCustomer}
+                      onChange={(e) => { setProjFilterCustomer(e.target.value); setProjPage(1); }}
+                      className="h-7 rounded border border-slate-300 bg-white px-2 text-[11px] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] uppercase font-bold text-slate-400">Date Range</span>
+                    <select value={projFilterDate} onChange={(e) => { setProjFilterDate(e.target.value); setProjPage(1); }} className="h-7 rounded border border-slate-300 bg-white px-1 text-[11px]">
+                      <option value="">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="week">Last 7 Days</option>
+                      <option value="month">Last 30 Days</option>
+                    </select>
+                  </div>
+                </div>
+
+                <CardContent className="p-0 overflow-x-auto">
+                  {paginatedProjects.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic text-xs">No matching projects found.</div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project Name</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Project ID</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Customer</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-right">Budget</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Status</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Assigned Staff</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Quotations</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Created Date</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50">Progress</th>
+                          <th className="px-4 py-3 sticky top-0 bg-slate-50 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paginatedProjects.map((p) => {
+                          const quoteCount = quoteList.filter(q => q.projectId === p.id).length;
+                          const assignedList = employees.filter(e => p.assignedEmployeeIds?.includes(e.id)).map(e => e.name);
+                          
+                          return (
+                            <tr key={p.id} className="hover:bg-slate-50/50 transition">
+                              <td className="px-4 py-3.5 font-bold text-slate-900">{p.name}</td>
+                              <td className="px-4 py-3.5 font-mono text-slate-600">PROJ-{p.id.slice(0, 8).toUpperCase()}</td>
+                              <td className="px-4 py-3.5 text-slate-800 font-medium">{p.customerDetails?.name || "N/A"}</td>
+                              <td className="px-4 py-3.5 text-right font-extrabold text-slate-900">{formatCurrency(p.budget || 0)}</td>
+                              <td className="px-4 py-3.5">
+                                <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  p.status === "active" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" :
+                                  "bg-slate-100 text-slate-800 border border-slate-200"
+                                }`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-slate-700">
+                                {assignedList.length === 0 ? (
+                                  <span className="text-slate-400 italic">None</span>
+                                ) : (
+                                  <span className="font-medium">{assignedList.join(", ")}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 text-center font-bold text-indigo-600">{quoteCount} quotes</td>
+                              <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
+                                <div>{new Date(p.createdAt).toLocaleDateString()}</div>
+                                <div className="text-[9px] text-slate-400 mt-0.5">{new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="flex items-center gap-2 min-w-[80px]">
+                                  <div className="h-2 bg-slate-100 rounded-full flex-1 overflow-hidden border border-slate-200">
+                                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${p.progressPercentage || 0}%` }} />
+                                  </div>
+                                  <span className="font-extrabold text-[10px] text-slate-800">{p.progressPercentage || 0}%</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3.5 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <Button
+                                    onClick={() => {
+                                      setSelectedProject(p);
+                                      setProjProgressInput(p.progressPercentage || 0);
+                                      setProjImageInput("");
+                                      setTimelineTitleInput("");
+                                      setTimelineNotesInput("");
+                                    }}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold h-6.5 px-2 rounded.flex items-center gap-1 shadow-sm"
+                                  >
+                                    Open Project
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </CardContent>
+
+                {/* Pagination Controls */}
+                {totalProjPages > 1 && (
+                  <div className="p-3.5 border-t border-slate-150 flex justify-between items-center text-xs text-slate-500 bg-slate-50/50">
+                    <span>Showing Page <b>{projPage}</b> of <b>{totalProjPages}</b></span>
+                    <div className="flex gap-2">
+                      <Button disabled={projPage <= 1} onClick={() => setProjPage(prev => prev - 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Previous</Button>
+                      <Button disabled={projPage >= totalProjPages} onClick={() => setProjPage(prev => prev + 1)} size="sm" variant="outline" className="h-8 px-2 font-bold">Next</Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
 
               {/* Employee Management Section below */}
               {user?.role === "company" && (
@@ -2022,6 +2783,152 @@ export default function Dashboard() {
 
       </div>
 
+      {/* QUOTATION DETAILS DIALOG */}
+      {selectedQuoteForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <Card className="w-full max-w-lg border-slate-200 shadow-2xl bg-white overflow-hidden max-h-[95vh] flex flex-col justify-between">
+            <CardHeader className="py-4 border-b border-slate-150 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-extrabold text-slate-900">Quotation Details Profile</CardTitle>
+                <CardDescription className="text-[10px] font-mono">Q-{selectedQuoteForDetails.id.toUpperCase()}</CardDescription>
+              </div>
+              <button onClick={() => setSelectedQuoteForDetails(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs text-slate-700">
+              <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Quote ID / Number</span>
+                  <span className="font-mono font-bold text-slate-800">Q-{selectedQuoteForDetails.id.slice(0, 8).toUpperCase()}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Quote Status</span>
+                  <span className="inline-block bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[9px] font-black uppercase">
+                    {selectedQuoteForDetails.status || "draft"}
+                  </span>
+                </div>
+                <div className="col-span-2 border-t border-slate-200/60 pt-2">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Scope / Name</span>
+                  <span className="font-extrabold text-slate-900 capitalize">
+                    {selectedQuoteForDetails.name || selectedQuoteForDetails.customerName + " Estimate (" + selectedQuoteForDetails.calculatorUsed + ")"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] uppercase font-black text-indigo-600 tracking-wider">Customer Details</h4>
+                <div className="bg-slate-50/50 p-3.5 rounded-lg border border-slate-150 grid gap-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Name:</span>
+                    <span className="font-bold text-slate-800">{selectedQuoteForDetails.customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Phone:</span>
+                    <span className="font-semibold text-slate-800">{selectedQuoteForDetails.customerPhone || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Email:</span>
+                    <span className="font-semibold text-slate-800">{selectedQuoteForDetails.customerEmail || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Location:</span>
+                    <span className="font-semibold text-slate-800">{selectedQuoteForDetails.customerLocation || "N/A"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] uppercase font-black text-indigo-600 tracking-wider">Project Linkage</h4>
+                <div className="bg-slate-50/50 p-3.5 rounded-lg border border-slate-150">
+                  {selectedQuoteForDetails.projectId ? (
+                    <div className="grid gap-2">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Project Name:</span>
+                        <span className="font-bold text-slate-800">{selectedQuoteForDetails.projectName || "Linked Project"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Project ID:</span>
+                        <span className="font-mono text-slate-800">PROJ-{selectedQuoteForDetails.projectId.slice(0, 8).toUpperCase()}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 italic">No project is currently linked to this quotation.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] uppercase font-black text-indigo-600 tracking-wider">Generated Metadata</h4>
+                <div className="bg-slate-50/50 p-3.5 rounded-lg border border-slate-150 grid gap-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Calculator Used:</span>
+                    <span className="font-bold text-slate-800 capitalize">{(selectedQuoteForDetails.calculatorUsed || selectedQuoteForDetails.projectType || "Modular Kitchen").replace("-", " ")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Date Generated:</span>
+                    <span className="font-semibold text-slate-800">{new Date(selectedQuoteForDetails.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Time Generated:</span>
+                    <span className="font-semibold text-slate-800">{new Date(selectedQuoteForDetails.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Last Updated:</span>
+                    <span className="font-semibold text-slate-800">{new Date(selectedQuoteForDetails.updatedAt || selectedQuoteForDetails.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] uppercase font-black text-indigo-600 tracking-wider">Estimated Financial Summary</h4>
+                <div className="bg-indigo-600 text-white p-4 rounded-xl space-y-2.5 shadow-sm shadow-indigo-100">
+                  <div className="flex justify-between text-[11px] opacity-90">
+                    <span>Base Estimate Total:</span>
+                    <span>{formatCurrency(selectedQuoteForDetails.totalAmount || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] opacity-90">
+                    <span>GST (18% Standard):</span>
+                    <span>{formatCurrency((selectedQuoteForDetails.totalAmount || 0) * 0.18)}</span>
+                  </div>
+                  <div className="border-t border-white/20 pt-2 flex justify-between items-baseline">
+                    <span className="font-black text-xs uppercase tracking-wide">Final Amount (Incl. Tax)</span>
+                    <span className="text-base font-black">{formatCurrency((selectedQuoteForDetails.totalAmount || 0) * 1.18)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-150 p-4 bg-slate-50 flex gap-2">
+              <Button
+                type="button"
+                onClick={() => setSelectedQuoteForDetails(null)}
+                className="flex-1 bg-slate-200 text-slate-700 font-bold py-2 rounded-lg"
+              >
+                Close View
+              </Button>
+              {selectedQuoteForDetails.projectId && (
+                <Button
+                  onClick={() => {
+                    const linkedProj = projects.find(p => p.id === selectedQuoteForDetails.projectId);
+                    if (linkedProj) {
+                      setSelectedProject(linkedProj);
+                      setSelectedQuoteForDetails(null);
+                    } else {
+                      alert("Linked project not found.");
+                    }
+                  }}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg shadow-sm"
+                >
+                  Open Associated Project
+                </Button>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* EMPLOYEE MANAGEMENT OVERLAY */}
       {selectedEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
@@ -2180,6 +3087,7 @@ export default function Dashboard() {
                 try {
                   await api.projects.create({
                     name: projName,
+                    budget: projBudget,
                     customerDetails: {
                       name: custName,
                       phone: custPhone,
@@ -2203,6 +3111,10 @@ export default function Dashboard() {
                 <div className="grid gap-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Project Name</Label>
                   <Input required className="border-slate-300 h-9 font-bold" placeholder="e.g. Oakridge Villa Interior" value={projName} onChange={(e) => setProjName(e.target.value)} />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Project Budget (INR)</Label>
+                  <Input type="number" required className="border-slate-300 h-9 font-bold" placeholder="e.g. 1200000" value={projBudget || ""} onChange={(e) => setProjBudget(parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Customer Name</Label>
@@ -2311,6 +3223,10 @@ export default function Dashboard() {
                   <div className="flex justify-between">
                     <span className="text-slate-400 font-semibold">Site Address:</span>
                     <span className="font-medium text-slate-955">{selectedProject.customerDetails?.address || "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200/50 pt-1.5 mt-1.5">
+                    <span className="text-slate-400 font-semibold">Project Budget:</span>
+                    <span className="font-extrabold text-indigo-600">{formatCurrency(selectedProject.budget || 0)}</span>
                   </div>
                 </div>
               </div>
