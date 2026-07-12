@@ -2392,10 +2392,10 @@ export default function Dashboard() {
                     <Button
                       onClick={() => {
                         setSelectedProjectIdForQuote(selectedProject.id);
-                        setValue("customerName", selectedProject.customerDetails?.name || "");
-                        setValue("phone", selectedProject.customerDetails?.phone || "");
-                        setValue("email", selectedProject.customerDetails?.email || "");
-                        setCity(selectedProject.customerDetails?.address || "");
+                        quoteForm.setValue("customerName", selectedProject.customerDetails?.name || "");
+                        quoteForm.setValue("phone", selectedProject.customerDetails?.phone || "");
+                        quoteForm.setValue("email", selectedProject.customerDetails?.email || "");
+                        quoteForm.setValue("city", selectedProject.customerDetails?.address || "");
                         setActiveTab("quote");
                         setSelectedProject(null);
                       }}
