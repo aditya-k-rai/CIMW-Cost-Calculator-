@@ -99,6 +99,27 @@ export class AuthController {
     return this.authService.deleteCompanyForAdmin(companyId);
   }
 
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Get("admin/subscription-keys")
+  getAllSubscriptionKeys() {
+    return this.authService.getAllSubscriptionKeysForAdmin();
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Post("admin/subscription-keys")
+  createSubscriptionKey(@Body() body: any) {
+    return this.authService.createSubscriptionKeyForAdmin(body);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
+  @Delete("admin/subscription-keys/:id")
+  deleteSubscriptionKey(@Param("id") keyId: string) {
+    return this.authService.deleteSubscriptionKeyForAdmin(keyId);
+  }
+
   @Post("recover-password")
   recoverPassword(@Body() body: any) {
     return this.authService.recoverPassword(body);

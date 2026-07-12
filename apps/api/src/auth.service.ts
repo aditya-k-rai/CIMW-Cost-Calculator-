@@ -95,7 +95,17 @@ export class AuthService {
     return parentCompany.id;
   }
 
-  private async createCompanyRecord(userId: string, name: string, email: string, phone: string | null, gstNumber: string | null, district: string | null, state: string | null) {
+  private async createCompanyRecord(
+    userId: string,
+    name: string,
+    email: string,
+    phone: string | null,
+    gstNumber: string | null,
+    district: string | null,
+    state: string | null,
+    plan: string = "trial",
+    durationDays: number = 30
+  ) {
     const companyRecord = {
       id: userId,
       name,
@@ -109,8 +119,8 @@ export class AuthService {
       country: "India",
       logoUrl: "",
       subscription: {
-        plan: "trial",
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        plan,
+        expiryDate: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString(),
         status: "active"
       },
       limits: {
@@ -199,6 +209,14 @@ export class AuthService {
       if (!gstNumber || !keyId) {
         throw new BadRequestException("GST Number and Subscription Key-ID are required for Company signup");
       }
+      const keyDoc = await this.db.collection("subscription_keys").doc(keyId).get();
+      if (!keyDoc.exists) {
+        throw new BadRequestException(`Invalid Subscription Key: ${keyId}. Please request a valid key.`);
+      }
+      const keyData = keyDoc.data();
+      if (keyData.status !== "active") {
+        throw new BadRequestException(`Subscription Key ${keyId} has already been used or deactivated.`);
+      }
       permissions = JSON.stringify({
         kitchen: true,
         doors: true,
@@ -256,7 +274,19 @@ export class AuthService {
     await this.db.collection("users").doc(userId).set(userRecord);
 
     if (role === "company") {
-      await this.createCompanyRecord(userId, name, email, phone, gstNumber, district, state);
+      const keyDoc = await this.db.collection("subscription_keys").doc(keyId).get();
+      const keyData = keyDoc.data();
+      const durationDays = keyData.durationDays || 30;
+      const plan = keyData.plan || "trial";
+
+      await this.db.collection("subscription_keys").doc(keyId).update({
+        status: "used",
+        usedByCompanyId: userId,
+        usedByCompanyName: name,
+        updatedAt: new Date().toISOString()
+      });
+
+      await this.createCompanyRecord(userId, name, email, phone, gstNumber, district, state, plan, durationDays);
     }
 
     const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
@@ -404,6 +434,14 @@ export class AuthService {
       if (!gstNumber || !keyId) {
         throw new BadRequestException("GST Number and Subscription Key-ID are required for Company signup");
       }
+      const keyDoc = await this.db.collection("subscription_keys").doc(keyId).get();
+      if (!keyDoc.exists) {
+        throw new BadRequestException(`Invalid Subscription Key: ${keyId}. Please request a valid key.`);
+      }
+      const keyData = keyDoc.data();
+      if (keyData.status !== "active") {
+        throw new BadRequestException(`Subscription Key ${keyId} has already been used or deactivated.`);
+      }
       permissions = JSON.stringify({
         kitchen: true,
         doors: true,
@@ -458,7 +496,19 @@ export class AuthService {
     await this.db.collection("users").doc(userId).set(userRecord);
 
     if (role === "company") {
-      await this.createCompanyRecord(userId, displayName, email, phone, gstNumber, district, state);
+      const keyDoc = await this.db.collection("subscription_keys").doc(keyId).get();
+      const keyData = keyDoc.data();
+      const durationDays = keyData.durationDays || 30;
+      const plan = keyData.plan || "trial";
+
+      await this.db.collection("subscription_keys").doc(keyId).update({
+        status: "used",
+        usedByCompanyId: userId,
+        usedByCompanyName: displayName,
+        updatedAt: new Date().toISOString()
+      });
+
+      await this.createCompanyRecord(userId, displayName, email, phone, gstNumber, district, state, plan, durationDays);
     }
 
     const token = signJwt({ userId: userRecord.id, email: userRecord.email, role: userRecord.role }, JWT_SECRET);
@@ -688,6 +738,53 @@ export class AuthService {
 
   async deleteCompanyForAdmin(companyId: string) {
     await this.db.collection("companies").doc(companyId).delete();
+    return { success: true };
+  }
+
+  async getAllSubscriptionKeysForAdmin() {
+    const snapshot = await this.db.collection("subscription_keys").get();
+    return snapshot.docs.map((d: any) => d.data());
+  }
+
+  async createSubscriptionKeyForAdmin(body: any) {
+    const { keyId, companyName, plan, durationDays } = body;
+
+    let finalKeyId = keyId;
+    if (!finalKeyId) {
+      // Auto-generate key: 4 letters prefix, # symbol, 5 digit random number
+      const prefix = (companyName || "CIMW").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4).padEnd(4, "X");
+      const numbers = Math.floor(10000 + Math.random() * 90000);
+      finalKeyId = `${prefix}#${numbers}`;
+    }
+
+    if (finalKeyId.length !== 10) {
+      throw new BadRequestException("Subscription Key-ID must be exactly 10 characters long.");
+    }
+
+    const docRef = this.db.collection("subscription_keys").doc(finalKeyId);
+    const exists = (await docRef.get()).exists;
+    if (exists) {
+      throw new BadRequestException(`Subscription Key ${finalKeyId} already exists.`);
+    }
+
+    const keyRecord = {
+      id: finalKeyId,
+      companyName: companyName || "Unnamed Company",
+      plan: plan || "trial",
+      durationDays: durationDays || 30,
+      status: "active",
+      usedByCompanyId: null,
+      usedByCompanyName: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(keyRecord);
+    return { success: true, key: keyRecord };
+  }
+
+  async deleteSubscriptionKeyForAdmin(keyId: string) {
+    await this.db.collection("subscription_keys").doc(keyId).delete();
     return { success: true };
   }
 }

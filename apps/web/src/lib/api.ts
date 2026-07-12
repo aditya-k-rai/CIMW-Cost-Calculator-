@@ -150,6 +150,31 @@ export const api = {
       });
       return handleResponse(res);
     },
+
+    async getAllSubscriptionKeys() {
+      const res = await fetch(`${API_URL}/auth/admin/subscription-keys`, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
+
+    async createSubscriptionKey(body: any) {
+      const res = await fetch(`${API_URL}/auth/admin/subscription-keys`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+
+    async deleteSubscriptionKey(id: string) {
+      const res = await fetch(`${API_URL}/auth/admin/subscription-keys/${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      return handleResponse(res);
+    },
   },
 
   // ===================== CONFIG & PUBLIC CATALOG =====================

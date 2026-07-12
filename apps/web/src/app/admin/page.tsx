@@ -22,13 +22,14 @@ import {
   ChevronRight,
   Database,
   Users,
-  Building2
+  Building2,
+  Key
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "users" | "quotes" | "companies";
+type AdminTab = "products" | "brands-cats" | "woodwork" | "doors" | "users" | "quotes" | "companies" | "subscription-keys";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -47,6 +48,16 @@ export default function AdminDashboard() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [editCompany, setEditCompany] = useState<any>(null);
+
+  // Subscription Key State lists
+  const [subscriptionKeys, setSubscriptionKeys] = useState<any[]>([]);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+
+  // Subscription Key Form states
+  const [keyVal, setKeyVal] = useState("");
+  const [keyCompany, setKeyCompany] = useState("");
+  const [keyPlan, setKeyPlan] = useState("trial");
+  const [keyDuration, setKeyDuration] = useState(30);
 
   // Company Form states
   const [compId, setCompId] = useState("");
@@ -110,7 +121,7 @@ export default function AdminDashboard() {
 
   async function loadData() {
     try {
-      const [p, b, c, w, d, q, u, comp] = await Promise.all([
+      const [p, b, c, w, d, q, u, comp, keys] = await Promise.all([
         api.products.get(),
         api.brands.get(),
         api.categories.get(),
@@ -118,7 +129,8 @@ export default function AdminDashboard() {
         api.doors.getAll(),
         api.quotes.get(),
         api.auth.getAllUsers(),
-        api.auth.getAllCompanies()
+        api.auth.getAllCompanies(),
+        api.auth.getAllSubscriptionKeys()
       ]);
       setProducts(p);
       setBrands(b);
@@ -127,6 +139,7 @@ export default function AdminDashboard() {
       setDoorData(d);
       setUsers(u);
       setCompanies(comp || []);
+      setSubscriptionKeys(keys || []);
 
       let quoteData = q;
       try {
@@ -458,6 +471,50 @@ export default function AdminDashboard() {
     }
   }
 
+  // ===================== SUBSCRIPTION KEY OPERATIONS =====================
+
+  function openCreateKeyModal() {
+    setKeyVal("");
+    setKeyCompany("");
+    setKeyPlan("trial");
+    setKeyDuration(30);
+    setShowKeyModal(true);
+  }
+
+  function handleAutoGenerateKey() {
+    const prefix = (keyCompany || "CIMW").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4).padEnd(4, "X");
+    const numbers = Math.floor(10000 + Math.random() * 90000);
+    setKeyVal(`${prefix}#${numbers}`); // Exactly 10 characters!
+  }
+
+  async function handleKeySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await api.auth.createSubscriptionKey({
+        keyId: keyVal || undefined,
+        companyName: keyCompany,
+        plan: keyPlan,
+        durationDays: keyDuration
+      });
+      triggerSuccess("Subscription Key generated successfully!");
+      setShowKeyModal(false);
+      void loadData();
+    } catch (err: any) {
+      setErrorMsg("Failed to generate key: " + err.message);
+    }
+  }
+
+  async function deleteKey(id: string) {
+    if (!confirm("Are you sure you want to revoke this subscription key?")) return;
+    try {
+      await api.auth.deleteSubscriptionKey(id);
+      triggerSuccess("Subscription Key revoked successfully!");
+      void loadData();
+    } catch (err: any) {
+      setErrorMsg("Failed to revoke key: " + err.message);
+    }
+  }
+
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -558,6 +615,14 @@ export default function AdminDashboard() {
               }`}
             >
               <Building2 className="h-4 w-4" /> Companies
+            </button>
+            <button
+              onClick={() => setModeAndClear("subscription-keys")}
+              className={`flex h-11 items-center gap-3 rounded-lg px-3 text-left text-xs font-semibold uppercase tracking-wider transition ${
+                activeTab === "subscription-keys" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Key className="h-4 w-4" /> Subscription Keys
             </button>
           </nav>
         </aside>
@@ -1107,6 +1172,84 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* TAB 7: SUBSCRIPTION KEYS MANAGER */}
+          {activeTab === "subscription-keys" && (
+            <Card className="border-slate-200 shadow-sm bg-white">
+              <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
+                <div>
+                  <CardTitle className="text-lg">Subscription Keys Catalog</CardTitle>
+                  <CardDescription>Generate 10-digit registration codes to onboard new builders and workspace tenants.</CardDescription>
+                </div>
+                <Button
+                  onClick={openCreateKeyModal}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2 px-3.5 rounded-lg flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="h-4.5 w-4.5" /> Generate Key
+                </Button>
+              </CardHeader>
+              
+              <CardContent className="p-0 overflow-x-auto">
+                {subscriptionKeys.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 font-bold text-sm">
+                    No subscription keys generated yet.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3">Key Code</th>
+                        <th className="px-4 py-3">Allocated Company Name</th>
+                        <th className="px-4 py-3">Plan / Validity</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150">
+                      {subscriptionKeys.map((k) => (
+                        <tr key={k.id} className="hover:bg-slate-50/40">
+                          <td className="px-4 py-3 font-bold">
+                            <span className="font-mono bg-slate-100 text-slate-800 px-2.5 py-1 rounded border border-slate-200 text-sm select-all">
+                              {k.id}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-800">
+                            {k.companyName}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 font-semibold capitalize">
+                            {k.plan} ({k.durationDays} Days)
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              k.status === 'active'
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-800"
+                            }`}>
+                              {k.status}
+                              {k.usedByCompanyName && (
+                                <span className="block text-[8px] font-normal lowercase mt-0.5">
+                                  by {k.usedByCompanyName}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => deleteKey(k.id)}
+                              className="text-slate-400 hover:text-red-600 p-1.5 transition-colors inline-block align-middle"
+                              title="Revoke Key"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
         </section>
       </div>
 
@@ -1411,6 +1554,103 @@ export default function AdminDashboard() {
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm"
                 >
                   {editCompany ? "Apply Limitations" : "Provision Company"}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+      {/* GENERATE KEY MODAL DIALOG */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-sm border-slate-200 shadow-2xl bg-white overflow-hidden">
+            <CardHeader className="py-4 border-b border-slate-100 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Generate Registration Key</CardTitle>
+                <CardDescription className="text-[10px]">Create an active signup key allocated to a specific company name.</CardDescription>
+              </div>
+              <button onClick={() => setShowKeyModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </CardHeader>
+
+            <form onSubmit={handleKeySubmit} className="p-5 space-y-4 text-xs">
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Company Name</Label>
+                  <Input
+                    placeholder="e.g. Acme Builders"
+                    className="border-slate-300 h-9 font-bold"
+                    value={keyCompany}
+                    required
+                    onChange={(e) => setKeyCompany(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Subscription Key Code (10 characters)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      maxLength={10}
+                      placeholder="e.g. ACME#98234"
+                      className="border-slate-300 h-9 font-mono font-bold text-slate-800"
+                      value={keyVal}
+                      required
+                      onChange={(e) => setKeyVal(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAutoGenerateKey}
+                      className="bg-indigo-600 text-white font-bold h-9 text-[11px] px-2.5"
+                    >
+                      Generate
+                    </Button>
+                  </div>
+                  <span className="text-[9px] text-slate-400 leading-normal">
+                    Code must contain letters, numbers, and symbols to form exactly 10 characters.
+                  </span>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Subscription Tier Plan</Label>
+                  <select
+                    className="h-9 w-full rounded border border-slate-300 bg-white px-2"
+                    value={keyPlan}
+                    onChange={(e) => setKeyPlan(e.target.value)}
+                  >
+                    <option value="trial">Free Trial</option>
+                    <option value="monthly">Monthly Subscription Plan</option>
+                    <option value="yearly">Yearly Subscription Plan</option>
+                    <option value="lifetime">Lifetime Access Plan</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500 font-semibold">Validity (Days)</Label>
+                  <Input
+                    type="number"
+                    className="border-slate-300 h-9 font-bold"
+                    value={keyDuration}
+                    required
+                    onChange={(e) => setKeyDuration(parseInt(e.target.value) || 30)}
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 flex gap-3">
+                <Button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={keyVal.length !== 10}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm disabled:opacity-50"
+                >
+                  Create Key
                 </Button>
               </div>
             </form>
