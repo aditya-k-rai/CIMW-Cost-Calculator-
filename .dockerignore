@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+.git
+.env
+service-account.json
+firebase-service-account.json
+*.log
+.gemini
+.agents
+*.tsbuildinfo
