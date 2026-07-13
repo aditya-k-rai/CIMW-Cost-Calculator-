@@ -40,7 +40,7 @@ RUN npm ci --omit=dev
 # Copy build output from the builder stage
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/prisma ./packages/api/prisma
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 
 # Cloud Run binds to port 8080 by default
 EXPOSE 8080
