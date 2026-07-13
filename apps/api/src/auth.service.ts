@@ -756,7 +756,7 @@ export class AuthService {
   }
 
   async createSubscriptionKeyForAdmin(body: any) {
-    const { keyId, companyName, plan, durationDays } = body;
+    const { keyId, companyName, plan, durationDays, expiryDate: customExpiryDate, expiryTime: customExpiryTime } = body;
 
     let finalKeyId = keyId;
     if (!finalKeyId) {
@@ -776,20 +776,62 @@ export class AuthService {
       throw new BadRequestException(`Subscription Key ${finalKeyId} already exists.`);
     }
 
+    const now = new Date();
+    const generatedDate = now.toISOString().split("T")[0];
+    const generatedTime = now.toTimeString().split(" ")[0];
+
+    const expiryTimestamp = new Date(Date.now() + (durationDays || 30) * 24 * 60 * 60 * 1000);
+    const expiryDate = customExpiryDate || expiryTimestamp.toISOString().split("T")[0];
+    const expiryTime = customExpiryTime || expiryTimestamp.toTimeString().split(" ")[0];
+
     const keyRecord = {
       id: finalKeyId,
-      companyName: companyName || "Unnamed Company",
+      keyCode: finalKeyId,
+      companyName: companyName || "",
       plan: plan || "trial",
       durationDays: durationDays || 30,
-      status: "active",
+      generatedDate,
+      generatedTime,
+      expiryDate,
+      expiryTime,
+      status: "active", // "active" | "expired" | "disabled" | "used"
+      createdBy: body.createdBy || "Admin",
       usedByCompanyId: null,
       usedByCompanyName: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
     };
 
     await docRef.set(keyRecord);
     return { success: true, key: keyRecord };
+  }
+
+  async updateSubscriptionKeyForAdmin(keyId: string, body: any) {
+    const docRef = this.db.collection("subscription_keys").doc(keyId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      throw new BadRequestException("Invitation key not found.");
+    }
+    const current = doc.data();
+
+    // Check if status is expired based on current local time if key is active
+    let targetStatus = body.status || current.status;
+    if (targetStatus === "active" && current.expiryDate) {
+      const expStr = `${current.expiryDate}T${current.expiryTime || "23:59:59"}`;
+      if (new Date(expStr).getTime() < Date.now()) {
+        targetStatus = "expired";
+      }
+    }
+
+    const updated = {
+      ...current,
+      ...body,
+      status: targetStatus,
+      updatedAt: new Date().toISOString()
+    };
+
+    await docRef.set(updated);
+    return { success: true, key: updated };
   }
 
   async deleteSubscriptionKeyForAdmin(keyId: string) {

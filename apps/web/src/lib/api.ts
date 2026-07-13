@@ -168,6 +168,15 @@ export const api = {
       return handleResponse(res);
     },
 
+    async updateSubscriptionKey(id: string, body: any) {
+      const res = await fetch(`${API_URL}/auth/admin/subscription-keys/${id}`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(body),
+      });
+      return handleResponse(res);
+    },
+
     async deleteSubscriptionKey(id: string) {
       const res = await fetch(`${API_URL}/auth/admin/subscription-keys/${id}`, {
         method: "DELETE",

@@ -116,6 +116,16 @@ export class AuthController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("admin")
+  @Post("admin/subscription-keys/:id")
+  updateSubscriptionKey(
+    @Param("id") keyId: string,
+    @Body() body: any
+  ) {
+    return this.authService.updateSubscriptionKeyForAdmin(keyId, body);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("admin")
   @Delete("admin/subscription-keys/:id")
   deleteSubscriptionKey(@Param("id") keyId: string) {
     return this.authService.deleteSubscriptionKeyForAdmin(keyId);
