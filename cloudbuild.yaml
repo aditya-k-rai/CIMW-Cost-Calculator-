@@ -1,0 +1,35 @@
+steps:
+  # 1. Build the container image using all-lowercase tag
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t',
+      'asia-south2-docker.pkg.dev/cimw-cost-calculator-502309/cloud-run-source-deploy/cimw-cost-calculator-api:latest',
+      '.'
+    ]
+
+  # 2. Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'push',
+      'asia-south2-docker.pkg.dev/cimw-cost-calculator-502309/cloud-run-source-deploy/cimw-cost-calculator-api:latest'
+    ]
+
+  # 3. Deploy the container to Google Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: [
+      'run',
+      'deploy',
+      'cimw-cost-calculator-api',
+      '--image',
+      'asia-south2-docker.pkg.dev/cimw-cost-calculator-502309/cloud-run-source-deploy/cimw-cost-calculator-api:latest',
+      '--region',
+      'asia-south2',
+      '--platform',
+      'managed',
+      '--allow-unauthenticated'
+    ]
+
+images:
+  - 'asia-south2-docker.pkg.dev/cimw-cost-calculator-502309/cloud-run-source-deploy/cimw-cost-calculator-api:latest'
