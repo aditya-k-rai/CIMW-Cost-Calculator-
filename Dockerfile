@@ -46,5 +46,5 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 EXPOSE 8080
 ENV PORT=8080
 
-# Auto-apply database schema migrations and launch NestJS API
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node apps/api/dist/main.js"]
+# Launch NestJS API
+CMD ["node", "apps/api/dist/main.js"]
