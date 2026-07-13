@@ -184,10 +184,14 @@ export class FirebaseService implements OnModuleInit {
     if (!credentialJson) {
       // Look for physical JSON credential files in root or api subfolders
       const possiblePaths = [
-        path.resolve(process.cwd(), "firebase-service-account.json"),
-        path.resolve(process.cwd(), "apps/api/firebase-service-account.json"),
         path.resolve(process.cwd(), "service-account.json"),
-        path.resolve(process.cwd(), "apps/api/service-account.json")
+        path.resolve(process.cwd(), "../service-account.json"),
+        path.resolve(process.cwd(), "../../service-account.json"),
+        path.resolve(process.cwd(), "firebase-service-account.json"),
+        path.resolve(process.cwd(), "../firebase-service-account.json"),
+        path.resolve(process.cwd(), "../../firebase-service-account.json"),
+        path.resolve(process.cwd(), "apps/api/service-account.json"),
+        path.resolve(process.cwd(), "apps/api/firebase-service-account.json")
       ];
 
       for (const p of possiblePaths) {
